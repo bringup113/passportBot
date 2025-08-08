@@ -147,7 +147,7 @@ export class NotifyService implements OnModuleInit, OnModuleDestroy {
     const lines: string[] = [];
     if (passportsDue > 0) lines.push(`有${passportsDue}本护照已经快到期`);
     if (visasDue > 0) lines.push(`有${visasDue}本护照的签证已经快到期`);
-    const text = lines.length > 0 ? `您好，您关注的证件有新动态：\n${lines.join('；\n')}。` : '今日无即将到期的关注护照或签证。';
+    const text = lines.length > 0 ? `---------------------------\n您好，您关注的证件有新动态：\n${lines.join('；\n')}。` : '今日无即将到期的关注护照或签证。';
     for (const t of targets) {
       try {
         await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: t.chatId, text }) });

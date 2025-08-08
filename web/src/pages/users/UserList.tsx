@@ -67,7 +67,7 @@ export default function UserList() {
         dataSource={data}
         columns={[
           { title: '用户名', dataIndex: 'username' },
-          { title: '启用', dataIndex: 'isActive', render: (v, r: User) => <Switch checked={r.isActive} onChange={(b) => toggleActive(r, b)} /> },
+          { title: '启用', dataIndex: 'isActive', render: (_: any, r: User) => <Switch checked={r.isActive} onChange={(b) => toggleActive(r, b)} /> },
           { title: '操作', render: (_: any, r: User) => (
             <Space>
               <Button type="link" onClick={() => resetPassword(r)}>重置密码</Button>

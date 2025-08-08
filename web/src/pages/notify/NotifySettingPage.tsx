@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Form, Input, Space, Switch, Typography, message, Divider, Table, Modal, Popconfirm, Tag } from 'antd';
+import { useEffect, useState } from 'react';
+import { Button, Card, Form, Input, Space, Switch, Typography, message, Divider, Table, Modal, Popconfirm } from 'antd';
 import http from '../../api/http';
 
 type NotifySetting = {
@@ -275,7 +275,7 @@ export default function NotifySettingPage() {
           if (!editOpen) return;
           const values = await editForm.validateFields();
           try {
-            const res = await http.patch(`/notify/whitelist/${editOpen.id}`, values);
+            await http.patch(`/notify/whitelist/${editOpen.id}`, values);
             setWhitelist((prev) => prev.map((w) => (w.id === editOpen.id ? { ...w, ...values } : w)));
             setEditOpen(null);
             editForm.resetFields();

@@ -1,39 +1,54 @@
-# Dependencies & builds
-node_modules/
-**/node_modules/
-dist/
-**/dist/
-build/
-coverage/
-npm-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.npm-cache/
-
-# Env & secrets
+# 环境变量文件（包含敏感信息）
 .env
-.env.*
-**/.env
-**/.env.*
-server/.env
-web/.env
+.env.local
+.env.production
+.env.development
+.npm-cache
 
-# IDE & OS
-.vscode/
-.idea/
+# 日志文件
+*.log
+logs/
+server/logs/
+
+# 依赖目录
+node_modules/
+*/node_modules/
+
+# 构建输出
+dist/
+build/
+*/dist/
+*/build/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 操作系统文件
 .DS_Store
 Thumbs.db
 
-# Framework outputs
-server/dist/
-web/.vite/
-web/.parcel-cache/
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Prisma & databases
-server/prisma/*.db
-server/prisma/*.sqlite
+# 临时文件
+*.tmp
+*.temp
+.cache/
 
-# Docker local data
-docker-data/
-*.local.*
+# Docker 相关
+.dockerignore
+
+# 测试覆盖率
+coverage/
+*.lcov
+
+# 其他
+*.pid
+*.seed
+*.pid.lock
 

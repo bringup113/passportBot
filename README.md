@@ -201,26 +201,158 @@ npm run lint
 
 ## 🚀 部署
 
-### 生产环境部署
+### 一键部署（推荐）
+
+#### 1. 准备环境
+确保已安装 Docker 和 Docker Compose：
 ```bash
-# 构建前端
-cd web
-npm run build
+# 检查 Docker 版本
+docker --version
+docker-compose --version
+```
 
-# 构建后端
-cd server
-npm run build
+#### 2. 配置环境变量
+```bash
+# 复制环境变量示例文件
+cp env.example .env
 
-# 使用 Docker 部署
+# 生成安全的 JWT 密钥（推荐）
+chmod +x generate-secret.sh
+./generate-secret.sh
+
+# 或者手动编辑环境变量
+nano .env
+```
+
+#### 3. 一键部署
+
+**Linux/macOS:**
+```bash
+# 给部署脚本执行权限
+chmod +x deploy.sh
+
+# 运行一键部署
+./deploy.sh
+```
+
+**Windows:**
+```cmd
+# 生成安全的 JWT 密钥（推荐）
+generate-secret.bat
+
+# 运行一键部署
+deploy.bat
+```
+
+#### 4. 测试部署（可选）
+```bash
+# Linux/macOS
+chmod +x test-deploy.sh
+./test-deploy.sh
+
+# Windows
+test-deploy.bat
+```
+
+### 手动部署
+
+#### 开发环境
+```bash
+# 启动数据库
+docker-compose up -d
+
+# 安装依赖并启动服务
+cd server && npm install && npm run start:dev
+cd ../web && npm install && npm run dev
+```
+
+#### 生产环境
+```bash
+# 使用默认配置（推荐）
+docker-compose up -d
+
+# 运行数据库迁移
+docker-compose exec server npx prisma migrate deploy
+
+# 或者使用生产环境配置
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-### 环境变量
-生产环境需要配置以下环境变量：
-- `DATABASE_URL` - 数据库连接字符串
-- `JWT_SECRET` - JWT 密钥
-- `PORT` - 服务端口
-- `NODE_ENV` - 环境标识
+### 环境变量配置
+
+#### 必需的环境变量
+- `POSTGRES_USER` - 数据库用户名（默认：postgres）
+- `POSTGRES_PASSWORD` - 数据库密码（默认：postgres）
+- `POSTGRES_DB` - 数据库名称（默认：visa）
+- `JWT_SECRET` - JWT 密钥（**必须修改为安全的密钥**）
+
+#### 🔐 安全密钥配置
+**重要：** JWT_SECRET 必须使用安全的随机密钥，不能使用默认值。
+
+**生成安全密钥的方法：**
+
+1. **使用提供的脚本（推荐）：**
+   ```bash
+   # Linux/macOS
+   chmod +x generate-secret.sh
+   ./generate-secret.sh
+   
+   # Windows
+   generate-secret.bat
+   ```
+
+2. **使用在线工具：**
+   - 访问：https://generate-secret.vercel.app/32
+   - 复制生成的密钥到 .env 文件
+
+3. **使用命令行：**
+   ```bash
+   # 使用 OpenSSL
+   openssl rand -base64 32
+   
+   # 使用 Node.js
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   ```
+
+**安全提醒：**
+- 密钥长度至少 32 字符
+- 不要使用简单字符串或默认值
+- 不要将 .env 文件提交到版本控制系统
+- 在生产环境中使用更安全的密钥管理方式
+
+#### 可选的环境变量
+- `DB_PORT` - 数据库端口（默认：5432）
+- `SERVER_PORT` - 后端服务端口（默认：3000）
+- `WEB_PORT` - 前端服务端口（默认：80）
+- `NGINX_PORT` - Nginx 代理端口（默认：8080）
+- `NODE_ENV` - 环境标识（默认：production）
+
+### 访问地址
+部署完成后，可以通过以下地址访问：
+- **前端应用**: http://localhost:80
+- **后端 API**: http://localhost:3000
+- **数据库**: localhost:5432
+
+### 常用 Docker 命令
+```bash
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f
+
+# 重启服务
+docker-compose restart
+
+# 停止服务
+docker-compose down
+
+# 重新构建并启动
+docker-compose up -d --build
+
+# 使用生产环境配置（可选）
+docker-compose -f docker-compose.prod.yml up -d
+```
 
 ## 🤝 贡献指南
 

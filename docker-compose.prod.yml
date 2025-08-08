@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # 数据库服务
   db:
@@ -43,7 +45,7 @@ services:
     networks:
       - visa-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -66,10 +68,12 @@ services:
     networks:
       - visa-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+
 
 volumes:
   db_data:
