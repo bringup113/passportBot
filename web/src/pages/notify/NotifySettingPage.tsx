@@ -144,30 +144,45 @@ export default function NotifySettingPage() {
                 placeholder="请输入 Telegram Bot Token"
                 autoComplete="off"
                 addonAfter={
-                  <Button
-                    size="small"
-                    onClick={async () => {
-                      try {
-                        const token = form.getFieldValue('telegramBotToken');
-                        if (!token) return message.warning('请先填写 Bot Token');
-                        const res = await http.post('/notify/test-bot', { token });
-                        const d = res?.data;
-                        if (typeof d?.sent === 'number') {
-                          if (d.failed > 0) message.warning(`已发送${d.sent}条，失败${d.failed}条`);
-                          else message.success(`已发送${d.sent}条，全部成功`);
-                        } else if (d?.message) {
-                          if (d.ok) message.success(d.message);
-                          else message.warning(d.message);
-                        } else {
-                          message.success('测试完成');
+                  <Space size="small">
+                    <Button
+                      size="small"
+                      onClick={async () => {
+                        try {
+                          const token = form.getFieldValue('telegramBotToken');
+                          if (!token) return message.warning('请先填写 Bot Token');
+                          const res = await http.post('/notify/test-bot', { token });
+                          const d = res?.data;
+                          if (typeof d?.sent === 'number') {
+                            if (d.failed > 0) message.warning(`已发送${d.sent}条，失败${d.failed}条`);
+                            else message.success(`已发送${d.sent}条，全部成功`);
+                          } else if (d?.message) {
+                            if (d.ok) message.success(d.message);
+                            else message.warning(d.message);
+                          } else {
+                            message.success('测试完成');
+                          }
+                        } catch (e: any) {
+                          message.error(e?.response?.data?.message || '测试失败');
                         }
-                      } catch (e: any) {
-                        message.error(e?.response?.data?.message || '测试失败');
-                      }
-                    }}
-                  >
-                    测试
-                  </Button>
+                      }}
+                    >
+                      测试
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={async () => {
+                        try {
+                          const res = await http.post('/notify/run-now');
+                          message.success(`已触发通知：护照${res?.data?.passportsDue ?? 0}，签证${res?.data?.visasDue ?? 0}`);
+                        } catch (e: any) {
+                          message.error(e?.response?.data?.message || '触发失败');
+                        }
+                      }}
+                    >
+                      立即通知
+                    </Button>
+                  </Space>
                 }
               />
             </Form.Item>

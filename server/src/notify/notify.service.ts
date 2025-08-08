@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CronJob } from 'cron';
 
 @Injectable()
-export class NotifyService {
+export class NotifyService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotifyService.name);
+  private cronJob?: CronJob;
 
   async getSetting() {
     const setting = await this.prisma.notifySetting.findFirst();
@@ -91,6 +94,68 @@ export class NotifyService {
     const failed = results.length - sent;
     console.log(`[Notify][test-bot] done, sent=${sent}, failed=${failed}`);
     return { ok: failed === 0, sent, failed, total: results.length, results };
+  }
+
+  onModuleInit() {
+    // 每天 00:05 执行（秒 分 时 日 月 周），默认服务器本地时区
+    this.cronJob = new CronJob('0 5 0 * * *', async () => {
+      try {
+        await this.runDailyNotifications();
+      } catch (e) {
+        this.logger.error('runDailyNotifications failed', e as any);
+      }
+    });
+    this.cronJob.start();
+  }
+
+  onModuleDestroy() {
+    this.cronJob?.stop();
+  }
+
+  // 每天 00:05 的通知逻辑（也可被手动触发）
+  async runDailyNotifications() {
+    const setting = await this.getSetting();
+    if (!setting.enabled) return { ok: false, message: 'notification disabled' };
+    const daysList: number[] = [];
+    if (setting.threshold15) daysList.push(15);
+    if (setting.threshold30) daysList.push(30);
+    if (setting.threshold90) daysList.push(90);
+    if (setting.threshold180) daysList.push(180);
+    if (daysList.length === 0) return { ok: false, message: 'no thresholds' };
+
+    // 仅统计：关注中；时间窗口：现在起到最大阈值（避免重复计数）
+    const now = new Date();
+    const maxDays = Math.max(...daysList);
+    const horizon = new Date(now);
+    horizon.setDate(horizon.getDate() + maxDays);
+
+    const passportsExpiring = await this.prisma.passport.findMany({
+      where: { expiryDate: { gt: now, lte: horizon } },
+      select: { isFollowing: true },
+    });
+    const passportsDue = passportsExpiring.filter((p) => p.isFollowing).length;
+
+    const visasExpiring = await this.prisma.visa.findMany({
+      where: { expiryDate: { gt: now, lte: horizon } },
+      select: { passport: { select: { isFollowing: true } } },
+    });
+    const visasDue = visasExpiring.filter((v) => v.passport?.isFollowing).length;
+
+    const targets = await this.prisma.telegramWhitelist.findMany({ where: { isActive: true } });
+    if (!targets.length) return { ok: false, message: 'no active whitelist' };
+    const url = `https://api.telegram.org/bot${setting.telegramBotToken}/sendMessage`;
+    const lines: string[] = [];
+    if (passportsDue > 0) lines.push(`有${passportsDue}本护照已经快到期`);
+    if (visasDue > 0) lines.push(`有${visasDue}本护照的签证已经快到期`);
+    const text = lines.length > 0 ? `您好，您关注的证件有新动态：\n${lines.join('；\n')}。` : '今日无即将到期的关注护照或签证。';
+    for (const t of targets) {
+      try {
+        await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: t.chatId, text }) });
+      } catch (e) {
+        this.logger.error(`send failed chatId=${t.chatId}`, e as any);
+      }
+    }
+    return { ok: true, passportsDue, visasDue, targets: targets.length };
   }
 
   async syncWhitelistFromUpdates(token?: string) {

@@ -31,7 +31,7 @@ export class PassportsService {
   }
 
   async create(data: {
-    passportNo: string; clientId: string; country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock?: boolean; isFollowing?: boolean;
+    passportNo: string; clientId: string; country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock?: boolean; isFollowing?: boolean; remark?: string | null;
   }) {
     const exists = await this.prisma.passport.findUnique({ where: { passportNo: data.passportNo }, include: { client: true } });
     if (exists) {
@@ -40,6 +40,9 @@ export class PassportsService {
         passportNo: data.passportNo,
         clientName: exists.client?.name,
       });
+    }
+    if (data.inStock === false && !data.remark?.trim()) {
+      throw new BadRequestException('remark required when inStock is false');
     }
     return this.prisma.passport.create({ data: {
       passportNo: data.passportNo,
@@ -52,11 +55,20 @@ export class PassportsService {
       expiryDate: new Date(data.expiryDate),
       ...(typeof data.inStock === 'boolean' ? { inStock: data.inStock } : {}),
       ...(typeof data.isFollowing === 'boolean' ? { isFollowing: data.isFollowing } : {}),
+      ...(data.remark !== undefined ? { remark: data.remark } : {}),
     }});
   }
 
-  async update(passportNo: string, data: Partial<{ country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock: boolean; isFollowing: boolean }>) {
-    await this.get(passportNo);
+  async update(passportNo: string, data: Partial<{ country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock: boolean; isFollowing: boolean; remark: string | null }>) {
+    const existing = await this.prisma.passport.findUnique({ where: { passportNo } });
+    if (!existing) throw new NotFoundException('Passport not found');
+    if (data.inStock === false) {
+      const incomingRemark = data.remark !== undefined ? String(data.remark).trim() : undefined;
+      const currentRemark = existing.remark ? String(existing.remark).trim() : '';
+      if (!incomingRemark && !currentRemark) {
+        throw new BadRequestException('remark required when inStock is false');
+      }
+    }
     return this.prisma.passport.update({ where: { passportNo }, data: {
       ...('country' in data ? { country: data.country! } : {}),
       ...('fullName' in data ? { fullName: data.fullName! } : {}),
@@ -66,6 +78,7 @@ export class PassportsService {
       ...('expiryDate' in data ? { expiryDate: new Date(data.expiryDate!) } : {}),
       ...('inStock' in data ? { inStock: !!data.inStock } : {}),
       ...('isFollowing' in data ? { isFollowing: !!data.isFollowing } : {}),
+      ...('remark' in data ? { remark: data.remark ?? null } : {}),
     }});
   }
 

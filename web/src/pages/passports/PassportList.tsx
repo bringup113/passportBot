@@ -1,4 +1,4 @@
-import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, message, DatePicker, Popconfirm, Tabs, Row, Col } from 'antd';
+import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, message, DatePicker, Popconfirm, Tabs, Row, Col, Switch } from 'antd';
 import { useEffect, useState } from 'react';
 import http from '../../api/http';
 import dayjs from 'dayjs';
@@ -18,6 +18,9 @@ interface Passport {
   status?: string;
   client?: Client;
   visas?: Visa[];
+  inStock?: boolean;
+  isFollowing?: boolean;
+  remark?: string | null;
 }
 
 export default function PassportList() {
@@ -95,7 +98,14 @@ export default function PassportList() {
     refreshDetail(record.passportNo);
   };
 
-  const onCreate = () => { setEditing(null); setVisasTouched(false); form.resetFields(); form.setFieldValue('visas', []); setOpenEdit(true); };
+  const onCreate = () => {
+    setEditing(null);
+    setVisasTouched(false);
+    form.resetFields();
+    form.setFieldsValue({ inStock: true, isFollowing: false, remark: '' });
+    form.setFieldValue('visas', []);
+    setOpenEdit(true);
+  };
   const onEdit = async (record: Passport) => {
     // 先清空，避免上一次的签证信息残留
     form.resetFields();
@@ -111,6 +121,9 @@ export default function PassportList() {
         issueDate: dayjs(full.issueDate),
         expiryDate: dayjs(full.expiryDate),
         visas: (full.visas || []).map((v) => ({ id: (v as any).id, country: v.country, visaName: v.visaName, expiryDate: dayjs(v.expiryDate) })) as any,
+        inStock: full.inStock ?? true,
+        isFollowing: full.isFollowing ?? false,
+        remark: full.remark ?? '',
       } as any);
       setOpenEdit(true);
     } catch (e) {
@@ -283,6 +296,51 @@ export default function PassportList() {
           { title: '客户', dataIndex: ['client','name'], render: (_: any, r: Passport) => r.client?.name },
           { title: '国家', dataIndex: 'country' },
           { title: '姓名', dataIndex: 'fullName' },
+              { title: '在库', dataIndex: 'inStock', render: (_: any, r: Passport) => (
+                <Switch
+                  checked={r.inStock ?? true}
+                  checkedChildren="在库"
+                  unCheckedChildren="不在库"
+                  onClick={(_, e) => e?.stopPropagation?.()}
+                  onChange={async (checked) => {
+                    if (!checked) {
+                      let remarkVal = r.remark || '';
+                      Modal.confirm({
+                        title: `设置为不在库：${r.passportNo}`,
+                        content: (
+                          <div>
+                            <div style={{ marginBottom: 8 }}>请填写备注（必填）：</div>
+                            <Input.TextArea defaultValue={remarkVal} rows={3} onChange={(e) => { remarkVal = e.target.value; }} />
+                          </div>
+                        ),
+                        okText: '确定',
+                        cancelText: '取消',
+                        onOk: async () => {
+                          if (!remarkVal || !remarkVal.trim()) {
+                            message.warning('备注不能为空');
+                            throw new Error('no remark');
+                          }
+                          await http.patch(`/passports/${r.passportNo}`, { inStock: false, remark: remarkVal.trim() });
+                          fetchData();
+                        },
+                        onCancel: () => fetchData(),
+                      });
+                    } else {
+                      await http.patch(`/passports/${r.passportNo}`, { inStock: true });
+                      fetchData();
+                    }
+                  }}
+                />
+              ) },
+              { title: '关注', dataIndex: 'isFollowing', render: (_: any, r: Passport) => (
+                <Switch
+                  checked={r.isFollowing ?? false}
+                  checkedChildren="关注"
+                  unCheckedChildren="不关注"
+                  onClick={(_, e) => e?.stopPropagation?.()}
+                  onChange={async (checked) => { await http.patch(`/passports/${r.passportNo}`, { isFollowing: checked }); fetchData(); }}
+                />
+              ) },
           { title: '签发日', dataIndex: 'issueDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
           { title: '到期日', dataIndex: 'expiryDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
           { title: '状态', render: (_: any, r: Passport) => statusTag(r) },
@@ -365,6 +423,18 @@ export default function PassportList() {
                   </Row>
                   <Row gutter={12}>
                     <Col span={12}>
+                      <Form.Item name="inStock" label="是否在库" rules={[{ required: true }]}>
+                        <Select options={[{ label: '在库', value: true }, { label: '不在库', value: false }]} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="isFollowing" label="是否关注" rules={[{ required: true }]}>
+                        <Select options={[{ label: '关注', value: true }, { label: '不关注', value: false }]} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={12}>
+                    <Col span={12}>
                       <Form.Item name="gender" label="性别" rules={[{ required: true, message: '请选择性别' }]}>
                         <Select
                           options={[
@@ -390,6 +460,20 @@ export default function PassportList() {
                     <Col span={12}>
                       <Form.Item name="expiryDate" label="到期日期" rules={[{ required: true, message: '请选择到期日期' }]}>
                         <DatePicker style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col span={24}>
+                      <Form.Item noStyle shouldUpdate>
+                        {() => {
+                          const inStock = form.getFieldValue('inStock');
+                          return (
+                            <Form.Item name="remark" label="备注" rules={!inStock ? [{ required: true, message: '不在库时必须填写备注' }] : []}>
+                              <Input.TextArea rows={3} placeholder="当不在库时必须填写备注" />
+                            </Form.Item>
+                          );
+                        }}
                       </Form.Item>
                     </Col>
                   </Row>

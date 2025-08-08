@@ -73,6 +73,11 @@ export class NotifyController {
     await this.audit.recordCreate({ userId: user?.userId, entity: 'NOTIFY', entityId: 'whitelist:sync', after: result });
     return result;
   }
+
+  @Post('run-now')
+  runNow() {
+    return this.notify.runDailyNotifications();
+  }
 }
 
 

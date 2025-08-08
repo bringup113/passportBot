@@ -46,6 +46,7 @@ model Passport {
   status      String    @default("valid")
   inStock     Boolean   @default(true)
   isFollowing Boolean   @default(false)
+  remark      String?
   visas       Visa[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

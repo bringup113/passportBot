@@ -34,7 +34,7 @@ export class AuditService {
     const allowMap: Record<string, string[]> = {
       USER: ['username', 'isActive'],
       CLIENT: ['name', 'remark'],
-      PASSPORT: ['passportNo', 'clientId', 'country', 'fullName', 'gender', 'dateOfBirth', 'issueDate', 'expiryDate', 'inStock', 'isFollowing', 'status'],
+      PASSPORT: ['passportNo', 'clientId', 'country', 'fullName', 'gender', 'dateOfBirth', 'issueDate', 'expiryDate', 'inStock', 'isFollowing', 'status', 'remark'],
       VISA: ['id', 'passportNo', 'country', 'visaName', 'expiryDate', 'status'],
       NOTIFY: ['enabled', 'telegramBotToken', 'threshold15', 'threshold30', 'threshold90', 'threshold180', 'chatId', 'displayName', 'isActive'],
     };
