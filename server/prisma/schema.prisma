@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+  auditLogs    AuditLog[]
+}
+
+model Client {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  remark    String?
+  passports Passport[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Passport {
+  passportNo  String    @id
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  country     String
+  fullName    String
+  gender      String
+  dateOfBirth DateTime  @db.Date
+  issueDate   DateTime  @db.Date
+  expiryDate  DateTime  @db.Date
+  status      String    @default("valid")
+  inStock     Boolean   @default(true)
+  isFollowing Boolean   @default(false)
+  visas       Visa[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([expiryDate])
+  @@index([status, expiryDate])
+}
+
+model Visa {
+  id          String    @id @default(uuid())
+  passportNo  String
+  passport    Passport  @relation(fields: [passportNo], references: [passportNo], onDelete: Cascade)
+  country     String
+  visaName    String
+  expiryDate  DateTime  @db.Date
+  status      String    @default("valid")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([passportNo])
+  @@index([expiryDate])
+  @@index([status, expiryDate])
+}
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+  action     String
+  entity     String
+  entityId   String
+  diffJson   Json?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([entity, entityId, createdAt])
+}
+
+model NotifySetting {
+  id            String    @id @default(uuid())
+  enabled       Boolean   @default(false)
+  channel       String    @default("telegram")
+  telegramBotToken String?
+  threshold15   Boolean   @default(true)
+  threshold30   Boolean   @default(true)
+  threshold90   Boolean   @default(true)
+  threshold180  Boolean   @default(true)
+  updatedAt     DateTime  @updatedAt
+}
+
+model TelegramWhitelist {
+  id           String            @id @default(uuid())
+  chatId       String            @unique
+  displayName  String?
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  notifications NotificationLog[]
+}
+
+model NotificationLog {
+  id           String             @id @default(uuid())
+  targetType   String
+  targetId     String
+  channel      String             @default("telegram")
+  level        String?
+  message      String
+  scheduledAt  DateTime?
+  sentAt       DateTime?
+  status       String             @default("pending")
+  error        String?
+  whitelistId  String?
+  whitelist    TelegramWhitelist? @relation(fields: [whitelistId], references: [id])
+}

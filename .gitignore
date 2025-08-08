@@ -1,0 +1,39 @@
+# Dependencies & builds
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+coverage/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm-cache/
+
+# Env & secrets
+.env
+.env.*
+**/.env
+**/.env.*
+server/.env
+web/.env
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Framework outputs
+server/dist/
+web/.vite/
+web/.parcel-cache/
+
+# Prisma & databases
+server/prisma/*.db
+server/prisma/*.sqlite
+
+# Docker local data
+docker-data/
+*.local.*
+
