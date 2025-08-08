@@ -1,0 +1,87 @@
+services:
+  # 数据库服务
+  db:
+    image: postgres:16-alpine
+    container_name: visa_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-visa}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - visa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 后端服务 - 从 GitHub 构建
+  server:
+    build:
+      context: https://github.com/${GITHUB_REPO:-your-username/visa}.git#${GITHUB_BRANCH:-main}
+      dockerfile: server/Dockerfile
+      target: production
+      args:
+        - GITHUB_REPO=${GITHUB_REPO:-your-username/visa}
+        - GITHUB_BRANCH=${GITHUB_BRANCH:-main}
+    container_name: visa_server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-visa}
+      JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-key}
+      PORT: 3000
+      HOST: 0.0.0.0
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - visa-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - server_logs:/app/logs
+
+  # 前端服务 - 从 GitHub 构建
+  web:
+    build:
+      context: https://github.com/${GITHUB_REPO:-your-username/visa}.git#${GITHUB_BRANCH:-main}
+      dockerfile: web/Dockerfile
+      target: production
+      args:
+        - GITHUB_REPO=${GITHUB_REPO:-your-username/visa}
+        - GITHUB_BRANCH=${GITHUB_BRANCH:-main}
+    container_name: visa_web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - visa-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  db_data:
+    driver: local
+  server_logs:
+    driver: local
+
+networks:
+  visa-network:
+    driver: bridge
