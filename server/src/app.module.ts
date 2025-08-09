@@ -11,6 +11,7 @@ import { VisasModule } from './visas/visas.module';
 import { OverdueModule } from './overdue/overdue.module';
 import { AuditModule } from './audit/audit.module';
 import { NotifyModule } from './notify/notify.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { NotifyModule } from './notify/notify.module';
     OverdueModule,
     AuditModule,
     NotifyModule,
+      DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Layout, Menu, theme, Grid, Button } from 'antd';
 import type { ReactElement } from 'react';
 import { DashboardOutlined, TeamOutlined, IdcardOutlined, AlertOutlined, UserOutlined, BellOutlined, FileProtectOutlined } from '@ant-design/icons';
@@ -10,6 +10,7 @@ import OverduePage from './pages/overdue/OverduePage';
 import UserList from './pages/users/UserList';
 import NotifySettingPage from './pages/notify/NotifySettingPage';
 import AuditLogPage from './pages/audit/AuditLogPage';
+import DashboardPage from './pages/dashboard/DashboardPage';
 
 const { Header, Content, Sider } = Layout;
 
@@ -25,6 +26,11 @@ function AppLayout() {
     token: { colorBgContainer },
   } = theme.useToken();
   const screens = Grid.useBreakpoint();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const pathSeg = location.pathname.split('/')[1];
+  const selectedKey = pathSeg || 'dashboard';
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -38,7 +44,7 @@ function AppLayout() {
         <Menu
           theme="dark"
           mode="inline"
-          defaultSelectedKeys={['dashboard']}
+          selectedKeys={[selectedKey]}
           items={[
             { key: 'dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
             { key: 'clients', icon: <TeamOutlined />, label: '客户管理' },
@@ -49,8 +55,7 @@ function AppLayout() {
             { key: 'audit', icon: <FileProtectOutlined />, label: '操作日志' },
           ]}
           onClick={({ key }) => {
-            window.history.pushState({}, '', `/${key === 'dashboard' ? '' : key}`);
-            window.dispatchEvent(new PopStateEvent('popstate'));
+            navigate(key === 'dashboard' ? '/' : `/${key}`);
           }}
         />
       </Sider>
@@ -83,7 +88,7 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<div>欢迎使用仪表盘</div>} />
+        <Route index element={<DashboardPage />} />
         <Route path="clients" element={<ClientList />} />
         <Route path="passports" element={<PassportList />} />
         <Route path="overdue" element={<OverduePage />} />
