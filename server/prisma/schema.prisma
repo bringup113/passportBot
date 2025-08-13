@@ -47,6 +47,7 @@ model Passport {
   inStock     Boolean   @default(true)
   isFollowing Boolean   @default(false)
   remark      String?
+  mrzCode     String?
   visas       Visa[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

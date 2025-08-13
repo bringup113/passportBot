@@ -9,8 +9,12 @@ COPY package*.json ./
 # 安装依赖
 RUN npm ci
 
-# 复制源代码
+# 复制源代码 - 将源代码复制放在依赖安装之后，这样代码变更时不会影响依赖缓存
 COPY . .
+
+# 添加时间戳来强制重新构建（可选）
+ARG BUILD_DATE
+RUN echo "Build date: ${BUILD_DATE:-$(date)}"
 
 # 构建应用
 RUN npm run build

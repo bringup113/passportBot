@@ -8,7 +8,10 @@ export default function UserList() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<User[]>([]);
   const [open, setOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [form] = Form.useForm();
+  const [passwordForm] = Form.useForm();
 
   const fetchData = async () => {
     setLoading(true);
@@ -43,16 +46,31 @@ export default function UserList() {
   };
 
   const resetPassword = async (record: User) => {
-    Modal.confirm({
-      title: `重置 ${record.username} 的密码？`,
-      content: '将密码重置为 admin123，请尽快修改',
-      onOk: async () => {
-        try {
-          await http.patch(`/users/${record.id}`, { password: 'admin123' });
-          message.success('已重置密码为 admin123');
-        } catch { message.error('重置失败'); }
-      },
-    });
+    openChangePassword(record);
+  };
+
+  const openChangePassword = (record: User) => {
+    setCurrentUser(record);
+    setPasswordModalOpen(true);
+    passwordForm.resetFields();
+  };
+
+  const changePassword = async () => {
+    try {
+      const values = await passwordForm.validateFields();
+      if (values.newPassword !== values.confirmPassword) {
+        message.error('两次输入的密码不一致');
+        return;
+      }
+      
+      await http.patch(`/users/${currentUser!.id}`, { password: values.newPassword });
+      message.success('密码修改成功');
+      setPasswordModalOpen(false);
+      setCurrentUser(null);
+    } catch (e: any) {
+      if (e.errorFields) return; // 表单验证错误
+      message.error(e?.response?.data?.message || '修改密码失败');
+    }
   };
 
   return (
@@ -70,7 +88,7 @@ export default function UserList() {
           { title: '启用', dataIndex: 'isActive', render: (_: any, r: User) => <Switch checked={r.isActive} onChange={(b) => toggleActive(r, b)} /> },
           { title: '操作', render: (_: any, r: User) => (
             <Space>
-              <Button type="link" onClick={() => resetPassword(r)}>重置密码</Button>
+              <Button type="link" onClick={() => resetPassword(r)}>修改密码</Button>
             </Space>
           ) },
         ]}
@@ -86,6 +104,31 @@ export default function UserList() {
           </Form.Item>
           <Form.Item name="isActive" label="启用" initialValue={true} valuePropName="checked">
             <Switch />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal 
+        open={passwordModalOpen} 
+        title={`修改 ${currentUser?.username} 的密码`} 
+        onOk={changePassword} 
+        onCancel={() => { setPasswordModalOpen(false); setCurrentUser(null); }}
+        destroyOnClose
+      >
+        <Form form={passwordForm} layout="vertical">
+          <Form.Item 
+            name="newPassword" 
+            label="新密码" 
+            rules={[{ required: true, message: '请输入新密码' }]}
+          >
+            <Input.Password placeholder="请输入新密码" />
+          </Form.Item>
+          <Form.Item 
+            name="confirmPassword" 
+            label="确认密码" 
+            rules={[{ required: true, message: '请确认新密码' }]}
+          >
+            <Input.Password placeholder="请再次输入新密码" />
           </Form.Item>
         </Form>
       </Modal>

@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Card title="登录" style={{ width: 360 }}>
-        <Form form={form} onFinish={onFinish} layout="vertical" initialValues={{ username: 'admin', password: 'admin' }}>
+        <Form form={form} onFinish={onFinish} layout="vertical">
           <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
             <Input placeholder="用户名" />
           </Form.Item>

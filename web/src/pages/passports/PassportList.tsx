@@ -1,8 +1,9 @@
-import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, message, DatePicker, Popconfirm, Tabs, Row, Col, Switch } from 'antd';
+import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, message, DatePicker, Popconfirm, Tabs, Row, Col, Switch, Radio } from 'antd';
 import { useEffect, useState } from 'react';
 import http from '../../api/http';
 import dayjs from 'dayjs';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, ScanOutlined } from '@ant-design/icons';
+import parseMRZ from 'mrz/lib/parse/parse';
 
 interface Client { id: string; name: string }
 interface Visa { id?: string; country: string; visaName: string; expiryDate: string | any }
@@ -21,6 +22,7 @@ interface Passport {
   inStock?: boolean;
   isFollowing?: boolean;
   remark?: string | null;
+  mrzCode?: string | null;
 }
 
 export default function PassportList() {
@@ -42,10 +44,89 @@ export default function PassportList() {
 
   const [openVisa, setOpenVisa] = useState(false);
   const [visaForm] = Form.useForm<Visa>();
+  
+  // MRZ验证状态
+  const [mrzError, setMrzError] = useState<string | null>(null);
+  const [mrzValid, setMrzValid] = useState(false);
 
   const fetchClients = async () => {
     const res = await http.get('/clients');
     setClients(res.data);
+  };
+
+  // MRZ验证和自动填充函数
+  const validateAndFillMrz = (mrzText: string) => {
+    try {
+      // 清理MRZ文本，移除首尾空格
+      const cleanMrz = mrzText.trim();
+      
+      let lines: string[] = [];
+      
+      // 如果输入包含换行符，按换行符分割
+      if (cleanMrz.includes('\n')) {
+        lines = cleanMrz.split('\n').filter(line => line.trim().length > 0);
+      } else {
+        // 如果没有换行符，尝试按TD3格式自动分割（每行44个字符）
+        if (cleanMrz.length >= 88) { // TD3格式总长度通常是88个字符
+          lines = [
+            cleanMrz.substring(0, 44), // 第一行：44个字符
+            cleanMrz.substring(44, 88) // 第二行：44个字符
+          ];
+        } else if (cleanMrz.length >= 44) {
+          // 如果长度不够88个字符，尝试分割成两行
+          const midPoint = Math.ceil(cleanMrz.length / 2);
+          lines = [
+            cleanMrz.substring(0, midPoint),
+            cleanMrz.substring(midPoint)
+          ];
+        }
+      }
+      
+      if (lines.length < 2) {
+        setMrzValid(false);
+        setMrzError('MRZ码需要至少两行');
+        return;
+      }
+
+      const result = parseMRZ(lines);
+      
+      if (result && result.valid) {
+        const fields = result.fields;
+        
+        // 自动填充表单
+        form.setFieldsValue({
+          passportNo: fields.documentNumber || '',
+          fullName: fields.firstName && fields.lastName ? `${fields.firstName} ${fields.lastName}`.trim() : '',
+          country: fields.issuingState || '',
+          gender: fields.sex === 'M' ? 'male' : fields.sex === 'F' ? 'female' : 'other',
+          dateOfBirth: fields.birthDate ? dayjs(fields.birthDate, 'YYMMDD') : undefined,
+          expiryDate: fields.expirationDate ? dayjs(fields.expirationDate, 'YYMMDD') : undefined,
+        } as any);
+        
+        setMrzValid(true);
+        setMrzError(null);
+        message.success('MRZ码验证成功，已自动填充表单');
+      } else {
+        setMrzValid(false);
+        setMrzError('MRZ码格式错误');
+        message.error('MRZ码格式错误');
+      }
+    } catch (error) {
+      setMrzValid(false);
+      setMrzError('MRZ码解析失败');
+      message.error('MRZ码解析失败');
+    }
+  };
+
+  // 处理MRZ码输入变化
+  const handleMrzChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    if (value.length >= 44) { // TD3格式的MRZ码通常是44个字符
+      validateAndFillMrz(value);
+    } else {
+      setMrzValid(false);
+      setMrzError(null);
+    }
   };
 
   const fetchData = async () => {
@@ -102,29 +183,50 @@ export default function PassportList() {
     setEditing(null);
     setVisasTouched(false);
     form.resetFields();
-    form.setFieldsValue({ inStock: true, isFollowing: false, remark: '' });
-    form.setFieldValue('visas', []);
+    // 设置新建护照的默认值
+    form.setFieldsValue({ 
+      inStock: true, 
+      isFollowing: false, 
+      remark: '',
+      mrzCode: '',
+      visas: [] // 确保签证数组为空
+    });
+    // 重置MRZ验证状态
+    setMrzValid(false);
+    setMrzError(null);
     setOpenEdit(true);
   };
   const onEdit = async (record: Passport) => {
     // 先清空，避免上一次的签证信息残留
     form.resetFields();
-    form.setFieldValue('visas', []);
     try {
       const res = await http.get(`/passports/${record.passportNo}`);
       const full = res.data as Passport;
       setEditing(full);
       setVisasTouched(false);
+      
+      // 填充表单数据，包括签证信息
       form.setFieldsValue({
         ...full,
         dateOfBirth: dayjs(full.dateOfBirth),
         issueDate: dayjs(full.issueDate),
         expiryDate: dayjs(full.expiryDate),
-        visas: (full.visas || []).map((v) => ({ id: (v as any).id, country: v.country, visaName: v.visaName, expiryDate: dayjs(v.expiryDate) })) as any,
+        // 处理签证信息，确保日期格式正确
+        visas: (full.visas || []).map((v) => ({ 
+          id: (v as any).id, 
+          country: v.country, 
+          visaName: v.visaName, 
+          expiryDate: dayjs(v.expiryDate) 
+        })) as any,
         inStock: full.inStock ?? true,
         isFollowing: full.isFollowing ?? false,
         remark: full.remark ?? '',
+        mrzCode: full.mrzCode ?? '',
       } as any);
+      
+      // 重置MRZ验证状态
+      setMrzValid(false);
+      setMrzError(null);
       setOpenEdit(true);
     } catch (e) {
       message.error('加载详情失败');
@@ -142,6 +244,7 @@ export default function PassportList() {
       dateOfBirth: v.dateOfBirth?.format('YYYY-MM-DD'),
       issueDate: v.issueDate?.format('YYYY-MM-DD'),
       expiryDate: v.expiryDate?.format('YYYY-MM-DD'),
+      mrzCode: v.mrzCode,
     };
     // 判断护照是否真的发生变化，避免无效 PATCH 产生空变更日志
     const passportChanged = editing ? (
@@ -151,41 +254,51 @@ export default function PassportList() {
       editing.gender !== payload.gender ||
       dayjs(editing.dateOfBirth).format('YYYY-MM-DD') !== payload.dateOfBirth ||
       dayjs(editing.issueDate).format('YYYY-MM-DD') !== payload.issueDate ||
-      dayjs(editing.expiryDate).format('YYYY-MM-DD') !== payload.expiryDate
+      dayjs(editing.expiryDate).format('YYYY-MM-DD') !== payload.expiryDate ||
+      editing.mrzCode !== payload.mrzCode
     ) : true;
-    // 仅在用户确实进入或修改过签证时处理签证增删改
+    // 处理签证信息
     let visasToCreate: Visa[] = [];
     let visasToUpdate: any[] = [];
     let visasToDelete: string[] = [];
-    if (editing && visasTouched) {
-      const original = (editing.visas || []).map((vv: any) => ({
-        id: vv.id as string,
-        country: vv.country,
-        visaName: vv.visaName,
-        expiryDate: dayjs(vv.expiryDate).format('YYYY-MM-DD'),
+    
+    // 过滤并格式化提交的签证数据
+    const submitted: any[] = (v.visas || [])
+      .filter((x: any) => x && (x.id || x.country || x.visaName || x.expiryDate))
+      .map((x: any) => ({
+        id: x.id,
+        country: x.country,
+        visaName: x.visaName,
+        expiryDate: x.expiryDate?.format ? x.expiryDate.format('YYYY-MM-DD') : x.expiryDate,
       }));
-      const submitted: any[] = (v.visas || [])
-        .filter((x: any) => x && (x.id || x.country || x.visaName || x.expiryDate))
-        .map((x: any) => ({
-          id: x.id,
-          country: x.country,
-          visaName: x.visaName,
-          expiryDate: x.expiryDate?.format ? x.expiryDate.format('YYYY-MM-DD') : x.expiryDate,
+
+    if (editing) {
+      // 编辑模式：仅在用户确实修改过签证时处理签证增删改
+      if (visasTouched) {
+        const original = (editing.visas || []).map((vv: any) => ({
+          id: vv.id as string,
+          country: vv.country,
+          visaName: vv.visaName,
+          expiryDate: dayjs(vv.expiryDate).format('YYYY-MM-DD'),
         }));
 
-      const byId = new Map(original.map((o) => [o.id, o]));
-      // 创建
-      visasToCreate = submitted.filter((s) => !s.id && s.country && s.visaName && s.expiryDate);
-      // 更新（只挑改动过的）
-      visasToUpdate = submitted.filter((s) => {
-        if (!s.id) return false;
-        const o = byId.get(s.id);
-        if (!o) return true; // 不在原列表，按更新处理
-        return o.country !== s.country || o.visaName !== s.visaName || o.expiryDate !== s.expiryDate;
-      });
-      // 删除
-      const submittedIds = new Set(submitted.filter((s) => !!s.id).map((s) => s.id as string));
-      visasToDelete = original.filter((o) => !submittedIds.has(o.id)).map((o) => o.id);
+        const byId = new Map(original.map((o) => [o.id, o]));
+        // 创建
+        visasToCreate = submitted.filter((s) => !s.id && s.country && s.visaName && s.expiryDate);
+        // 更新（只挑改动过的）
+        visasToUpdate = submitted.filter((s) => {
+          if (!s.id) return false;
+          const o = byId.get(s.id);
+          if (!o) return true; // 不在原列表，按更新处理
+          return o.country !== s.country || o.visaName !== s.visaName || o.expiryDate !== s.expiryDate;
+        });
+        // 删除
+        const submittedIds = new Set(submitted.filter((s) => !!s.id).map((s) => s.id as string));
+        visasToDelete = original.filter((o) => !submittedIds.has(o.id)).map((o) => o.id);
+      }
+    } else {
+      // 新建模式：处理所有提交的签证数据
+      visasToCreate = submitted.filter((s) => s.country && s.visaName && s.expiryDate);
     }
 
     try {
@@ -382,148 +495,213 @@ export default function PassportList() {
 
       <Modal
         open={openEdit}
-        width={720}
+        width={1200}
         title={editing ? '编辑护照' : '新建护照'}
         onOk={onSubmit}
-        onCancel={() => { setOpenEdit(false); form.resetFields(); form.setFieldValue('visas', []); setEditing(null); }}
+        onCancel={() => { 
+          setOpenEdit(false); 
+          form.resetFields(); 
+          setEditing(null); 
+        }}
+        okText="确定"
+        cancelText="取消"
         destroyOnHidden
         forceRender
       >
-        <Tabs
-          defaultActiveKey="base"
-          items={[
-            {
-              key: 'base',
-              label: '基本信息',
-              children: (
-                <Form form={form} layout="vertical" labelCol={{ span: 6 }}>
+        <Form form={form} layout="vertical" labelCol={{ span: 24 }} wrapperCol={{ span: 24 }} onValuesChange={(changed) => { if ('visas' in changed) setVisasTouched(true); }}>
+          <Row gutter={24}>
+            {/* 左侧：护照基本信息 */}
+            <Col span={14}>
+              <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16, color: '#1890ff' }}>护照基本信息</div>
+              
+              {/* 第一行和第二行：MRZ码（左侧）+ 客户、护照号码（右侧） */}
+              <Row gutter={12}>
+                {/* 左侧：MRZ码，横跨两行，宽度更大 */}
+                <Col span={18}>
+                  <Form.Item 
+                    name="mrzCode" 
+                    label={
+                      <span>
+                        MRZ码
+                        <Button 
+                          type="link" 
+                          icon={<ScanOutlined />} 
+                          size="small" 
+                          style={{ marginLeft: 8 }}
+                          title="点击扫码或手动输入MRZ码"
+                        >
+                          扫码
+                        </Button>
+                      </span>
+                    }
+                    validateStatus={mrzError ? 'error' : mrzValid ? 'success' : undefined}
+                    help={mrzError}
+                  >
+                    <Input.TextArea 
+                      rows={6} 
+                      placeholder="MRZ码（两行，非必填）" 
+                      onChange={handleMrzChange}
+                      style={{ 
+                        borderColor: mrzError ? '#ff4d4f' : mrzValid ? '#52c41a' : undefined 
+                      }}
+                    />
+                  </Form.Item>
+                  {mrzValid && (
+                    <div style={{ color: '#52c41a', fontSize: '12px', marginTop: '4px' }}>
+                      ✓ MRZ码验证成功
+                    </div>
+                  )}
+                </Col>
+                
+                {/* 右侧：第一行 - 客户 */}
+                <Col span={6}>
                   <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item name="passportNo" label="护照号码" rules={[{ required: true, message: '请输入护照号码' }]}> 
-                        <Input autoFocus id="passportNo" disabled={!!editing} placeholder="唯一护照号" />
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
+                    <Col span={24}>
                       <Form.Item name="clientId" label="客户" rules={[{ required: true, message: '请选择客户' }]}>
                         <Select options={clients.map(c => ({ label: c.name, value: c.id }))} placeholder="选择客户" />
                       </Form.Item>
                     </Col>
                   </Row>
+                  
+                  {/* 第二行 - 护照号码 */}
                   <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item name="country" label="国家代码" rules={[{ required: true, message: '请输入国家代码' }]}>
-                        <Input placeholder="如 CN/US" />
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item name="fullName" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item name="inStock" label="是否在库" rules={[{ required: true }]}>
-                        <Select options={[{ label: '在库', value: true }, { label: '不在库', value: false }]} />
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item name="isFollowing" label="是否关注" rules={[{ required: true }]}>
-                        <Select options={[{ label: '关注', value: true }, { label: '不关注', value: false }]} />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item name="gender" label="性别" rules={[{ required: true, message: '请选择性别' }]}>
-                        <Select
-                          options={[
-                            { label: 'male', value: 'male' },
-                            { label: 'female', value: 'female' },
-                            { label: 'other', value: 'other' },
-                          ]}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item name="dateOfBirth" label="出生日期" rules={[{ required: true, message: '请选择出生日期' }]}>
-                        <DatePicker style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item name="issueDate" label="签发日期" rules={[{ required: true, message: '请选择签发日期' }]}>
-                        <DatePicker style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item name="expiryDate" label="到期日期" rules={[{ required: true, message: '请选择到期日期' }]}>
-                        <DatePicker style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Row>
                     <Col span={24}>
-                      <Form.Item noStyle shouldUpdate>
-                        {() => {
-                          const inStock = form.getFieldValue('inStock');
-                          return (
-                            <Form.Item name="remark" label="备注" rules={!inStock ? [{ required: true, message: '不在库时必须填写备注' }] : []}>
-                              <Input.TextArea rows={3} placeholder="当不在库时必须填写备注" />
-                            </Form.Item>
-                          );
-                        }}
+                      <Form.Item name="passportNo" label="护照号码" rules={[{ required: true, message: '请输入护照号码' }]}> 
+                        <Input autoFocus id="passportNo" disabled={!!editing} placeholder="唯一护照号" />
                       </Form.Item>
                     </Col>
                   </Row>
-                </Form>
-              ),
-            },
-            {
-              key: 'visas',
-              label: '签证（可选）',
-              children: (
-                <Form form={form} layout="vertical" onValuesChange={(changed) => { if ('visas' in changed) setVisasTouched(true); }}>
-                  <Form.List name="visas">
-                    {(fields, { add, remove }) => (
-                      <>
-                        {fields.map((field) => (
-                          <Row key={field.key} gutter={8} align="middle" style={{ marginBottom: 8 }}>
-                            <Col span={6}>
-                              <Form.Item name={[field.name, 'country']} fieldKey={[field.fieldKey!, 'country']} rules={[{ required: true, message: '国家' }]}>
-                                <Input placeholder="国家代码" />
-                              </Form.Item>
-                            </Col>
-                            <Col span={10}>
-                              <Form.Item name={[field.name, 'visaName']} fieldKey={[field.fieldKey!, 'visaName']} rules={[{ required: true, message: '签证名称' }]}>
-                                <Input placeholder="签证名称" />
-                              </Form.Item>
-                            </Col>
-                            <Col span={6}>
-                              <Form.Item name={[field.name, 'expiryDate']} fieldKey={[field.fieldKey!, 'expiryDate']} rules={[{ required: true, message: '到期日' }]}>
-                                <DatePicker style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={2}>
-                              <Button danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
-                            </Col>
-                          </Row>
-                        ))}
-                        <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>
-                          新增一条签证
-                        </Button>
-                      </>
-                    )}
-                  </Form.List>
-                </Form>
-              ),
-            },
-          ]}
-        />
+                </Col>
+              </Row>
+
+              {/* 新增的第三行：姓名 + 国家代码 */}
+              <Row gutter={12}>
+                <Col span={18}>
+                  <Form.Item name="fullName" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={6}>
+                  <Form.Item name="country" label="国家代码" rules={[{ required: true, message: '请输入国家代码' }]}>
+                    <Input placeholder="如 CN/US" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+                              {/* 第四行：性别 + 是否在库 + 是否关注 */}
+              <Row gutter={12}>
+                <Col span={8}>
+                  <Form.Item name="gender" label="性别" rules={[{ required: true, message: '请选择性别' }]}>
+                    <Radio.Group>
+                      <Radio value="male">男</Radio>
+                      <Radio value="female">女</Radio>
+                      <Radio value="other">其他</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="inStock" label="是否在库" rules={[{ required: true }]}>
+                    <Radio.Group defaultValue={true}>
+                      <Radio value={true}>在库</Radio>
+                      <Radio value={false}>不在库</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="isFollowing" label="是否关注" rules={[{ required: true }]}>
+                    <Radio.Group defaultValue={false}>
+                      <Radio value={true}>关注</Radio>
+                      <Radio value={false}>不关注</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+                </Col>
+              </Row>
+
+                              {/* 第五行：出生日期 + 签发日期 + 到期日期 */}
+              <Row gutter={12}>
+                <Col span={8}>
+                  <Form.Item name="dateOfBirth" label="出生日期">
+                    <DatePicker style={{ width: '100%' }} placeholder="非必填" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="issueDate" label="签发日期" rules={[{ required: true, message: '请选择签发日期' }]}>
+                    <DatePicker 
+                      style={{ width: '100%' }} 
+                      onChange={(date) => {
+                        if (date) {
+                          // 自动计算到期日期：签发日期 + 10年 - 1天
+                          const expiryDate = dayjs(date).add(10, 'year').subtract(1, 'day');
+                          form.setFieldValue('expiryDate', expiryDate);
+                        }
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="expiryDate" label="到期日期" rules={[{ required: true, message: '请选择到期日期' }]}>
+                    <DatePicker style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+                              {/* 第六行：备注 */}
+              <Row>
+                <Col span={24}>
+                  <Form.Item noStyle shouldUpdate>
+                    {() => {
+                      const inStock = form.getFieldValue('inStock');
+                      return (
+                        <Form.Item name="remark" label="备注" rules={!inStock ? [{ required: true, message: '不在库时必须填写备注' }] : []}>
+                          <Input.TextArea rows={3} placeholder="当不在库时必须填写备注" />
+                        </Form.Item>
+                      );
+                    }}
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Col>
+
+            {/* 右侧：签证信息 */}
+            <Col span={10}>
+              <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16, color: '#1890ff' }}>签证信息（可选）</div>
+              <Form.List name="visas">
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map((field) => (
+                                              <Row key={field.key} gutter={8} align="middle" style={{ marginBottom: 12 }}>
+                          <Col span={6}>
+                            <Form.Item name={[field.name, 'country']} fieldKey={[field.fieldKey!, 'country']} rules={[{ required: true, message: '请输入国家代码' }]}>
+                              <Input placeholder="国家代码" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={8}>
+                            <Form.Item name={[field.name, 'visaName']} fieldKey={[field.fieldKey!, 'visaName']} rules={[{ required: true, message: '请输入签证名称' }]}>
+                              <Input placeholder="签证名称" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={8}>
+                            <Form.Item name={[field.name, 'expiryDate']} fieldKey={[field.fieldKey!, 'expiryDate']} rules={[{ required: true, message: '请选择到期日' }]}>
+                              <DatePicker style={{ width: '100%' }} />
+                            </Form.Item>
+                          </Col>
+                          <Col span={2}>
+                            <Button danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} title="删除" />
+                          </Col>
+                        </Row>
+                    ))}
+                                      <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block style={{ marginTop: 8 }}>
+                    + 新增一条签证
+                  </Button>
+                  </>
+                )}
+              </Form.List>
+            </Col>
+          </Row>
+        </Form>
       </Modal>
 
-      <Modal open={openVisa} title="新增签证" onOk={addVisa} onCancel={() => setOpenVisa(false)} destroyOnHidden>
+      <Modal open={openVisa} title="新增签证" onOk={addVisa} onCancel={() => setOpenVisa(false)} okText="确定" cancelText="取消" destroyOnHidden>
         <Form form={visaForm} layout="vertical">
           <Form.Item name="country" label="国家代码" rules={[{ required: true }]}>
             <Input />

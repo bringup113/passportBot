@@ -31,7 +31,7 @@ export class PassportsService {
   }
 
   async create(data: {
-    passportNo: string; clientId: string; country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock?: boolean; isFollowing?: boolean; remark?: string | null;
+    passportNo: string; clientId: string; country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock?: boolean; isFollowing?: boolean; remark?: string | null; mrzCode?: string | null;
   }) {
     const exists = await this.prisma.passport.findUnique({ where: { passportNo: data.passportNo }, include: { client: true } });
     if (exists) {
@@ -56,10 +56,11 @@ export class PassportsService {
       ...(typeof data.inStock === 'boolean' ? { inStock: data.inStock } : {}),
       ...(typeof data.isFollowing === 'boolean' ? { isFollowing: data.isFollowing } : {}),
       ...(data.remark !== undefined ? { remark: data.remark } : {}),
+      ...(data.mrzCode !== undefined ? { mrzCode: data.mrzCode } : {}),
     }});
   }
 
-  async update(passportNo: string, data: Partial<{ country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock: boolean; isFollowing: boolean; remark: string | null }>) {
+  async update(passportNo: string, data: Partial<{ country: string; fullName: string; gender: string; dateOfBirth: string; issueDate: string; expiryDate: string; inStock: boolean; isFollowing: boolean; remark: string | null; mrzCode: string | null }>) {
     const existing = await this.prisma.passport.findUnique({ where: { passportNo } });
     if (!existing) throw new NotFoundException('Passport not found');
     if (data.inStock === false) {
@@ -79,6 +80,7 @@ export class PassportsService {
       ...('inStock' in data ? { inStock: !!data.inStock } : {}),
       ...('isFollowing' in data ? { isFollowing: !!data.isFollowing } : {}),
       ...('remark' in data ? { remark: data.remark ?? null } : {}),
+      ...('mrzCode' in data ? { mrzCode: data.mrzCode ?? null } : {}),
     }});
   }
 

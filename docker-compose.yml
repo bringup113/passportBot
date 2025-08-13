@@ -56,6 +56,8 @@ services:
       context: ./web
       dockerfile: Dockerfile
       target: production
+      args:
+        BUILD_DATE: ${BUILD_DATE:-$(date)}
     container_name: visa_web
     restart: unless-stopped
     ports:
