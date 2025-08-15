@@ -6,7 +6,21 @@ export class ClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
   list() {
-    return this.prisma.client.findMany({ orderBy: { name: 'asc' } });
+    return this.prisma.client.findMany({ 
+      orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: {
+            passports: true
+          }
+        },
+        passports: {
+          where: {
+            inStock: true
+          }
+        }
+      }
+    });
   }
 
   async create(data: { name: string; remark?: string }) {

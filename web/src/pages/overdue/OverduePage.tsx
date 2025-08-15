@@ -5,7 +5,17 @@ import dayjs from 'dayjs';
 
 interface Client { id: string; name: string }
 interface Passport { passportNo: string; client?: Client; country: string; fullName: string; expiryDate: string }
-interface Visa { id: string; passportNo: string; country: string; visaName: string; expiryDate: string }
+interface Visa { 
+  id: string; 
+  passportNo: string; 
+  country: string; 
+  visaName: string; 
+  expiryDate: string;
+  passport?: {
+    fullName: string;
+    client?: Client;
+  };
+}
 
 function statusTagByDate(dateStr: string) {
   const d = dayjs(dateStr);
@@ -19,7 +29,7 @@ function statusTagByDate(dateStr: string) {
 }
 
 export default function OverduePage() {
-  const [active, setActive] = useState<'passports' | 'visas'>('passports');
+  const [active, setActive] = useState<'passports' | 'visas'>('visas');
   const [days, setDays] = useState<number | undefined>(15);
   const [expired, setExpired] = useState<boolean | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -40,7 +50,7 @@ export default function OverduePage() {
       } else {
         const res = await http.get('/overdue/visas', { params });
         const list: Visa[] = res.data || [];
-        setVisas(q ? list.filter(x => (x.passportNo + x.visaName + x.country).toLowerCase().includes(q.toLowerCase())) : list);
+        setVisas(q ? list.filter(x => (x.passportNo + x.visaName + x.country + (x.passport?.fullName || '') + (x.passport?.client?.name || '')).toLowerCase().includes(q.toLowerCase())) : list);
       }
     } finally {
       setLoading(false);
@@ -51,7 +61,7 @@ export default function OverduePage() {
 
   const toolbar = (
     <Space wrap>
-      <Input.Search placeholder={active === 'passports' ? '护照号/姓名/客户' : '护照号/签证名称/国家'} allowClear value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
+      <Input.Search placeholder={active === 'passports' ? '护照号/姓名/客户' : '护照号/姓名/客户/签证名称/国家'} allowClear value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
       <Space>
         <Button type={days === 15 && !expired ? 'primary' : 'default'} onClick={() => { setDays(15); setExpired(false); }}>≤15天</Button>
         <Button type={days === 30 && !expired ? 'primary' : 'default'} onClick={() => { setDays(30); setExpired(false); }}>≤30天</Button>
@@ -72,6 +82,26 @@ export default function OverduePage() {
         onChange={(k) => setActive(k as any)}
         items={[
           {
+            key: 'visas',
+            label: '签证',
+            children: (
+              <Table
+                rowKey="id"
+                loading={loading}
+                dataSource={visas}
+                columns={[
+                  { title: '护照号', dataIndex: 'passportNo' },
+                  { title: '客户', dataIndex: ['passport', 'client', 'name'], render: (_: any, r: Visa) => r.passport?.client?.name || '-' },
+                  { title: '姓名', dataIndex: ['passport', 'fullName'], render: (_: any, r: Visa) => r.passport?.fullName || '-' },
+                  { title: '国家', dataIndex: 'country' },
+                  { title: '签证名称', dataIndex: 'visaName' },
+                  { title: '到期日', dataIndex: 'expiryDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
+                  { title: '状态', render: (_: any, r: Visa) => statusTagByDate(r.expiryDate) },
+                ]}
+              />
+            ),
+          },
+          {
             key: 'passports',
             label: '护照',
             children: (
@@ -86,24 +116,6 @@ export default function OverduePage() {
                   { title: '姓名', dataIndex: 'fullName' },
                   { title: '到期日', dataIndex: 'expiryDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
                   { title: '状态', render: (_: any, r: Passport) => statusTagByDate(r.expiryDate) },
-                ]}
-              />
-            ),
-          },
-          {
-            key: 'visas',
-            label: '签证',
-            children: (
-              <Table
-                rowKey="id"
-                loading={loading}
-                dataSource={visas}
-                columns={[
-                  { title: '护照号', dataIndex: 'passportNo' },
-                  { title: '国家', dataIndex: 'country' },
-                  { title: '签证名称', dataIndex: 'visaName' },
-                  { title: '到期日', dataIndex: 'expiryDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
-                  { title: '状态', render: (_: any, r: Visa) => statusTagByDate(r.expiryDate) },
                 ]}
               />
             ),

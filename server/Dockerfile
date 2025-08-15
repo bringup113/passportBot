@@ -46,11 +46,17 @@ RUN npx prisma generate
 # 从构建阶段复制构建结果
 COPY --from=builder /app/dist ./dist
 
+# 复制启动脚本
+COPY start.sh ./start.sh
+
 # 创建必要的目录
 RUN mkdir -p /app/logs
 
 # 更改文件所有权
 RUN chown -R nestjs:nodejs /app
+
+# 设置启动脚本权限
+RUN chmod +x start.sh
 
 # 切换到非 root 用户
 USER nestjs
@@ -60,4 +66,4 @@ EXPOSE 3000
 
 # 使用 dumb-init 启动应用
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/src/main.js"]
+CMD ["./start.sh"]

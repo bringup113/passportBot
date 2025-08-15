@@ -94,12 +94,38 @@ export default function PassportList() {
         const fields = result.fields;
         
         // 自动填充表单
+        let issueDate = undefined;
+        
+        // 如果MRZ中有签发日期，使用MRZ中的签发日期
+        if (fields.issueDate) {
+          issueDate = dayjs(fields.issueDate, 'YYMMDD');
+        } else if (fields.expirationDate) {
+          // 如果MRZ中没有签发日期，但有到期日期，则计算签发日期
+          // 签发日期 = 到期日期的年份减10年，然后整个日期再加1天
+          const expiryDate = dayjs(fields.expirationDate, 'YYMMDD');
+          issueDate = expiryDate.subtract(10, 'year').add(1, 'day');
+        }
+        
+        // 处理性别字段 - MRZ库返回的是小写的性别值
+        let genderValue = 'other';
+        if (fields.sex) {
+          const sexStr = String(fields.sex).toLowerCase();
+          if (sexStr === 'male' || sexStr === 'm' || sexStr === '1') {
+            genderValue = 'male';
+          } else if (sexStr === 'female' || sexStr === 'f' || sexStr === '2') {
+            genderValue = 'female';
+          } else if (sexStr === 'x' || sexStr === 'unspecified' || sexStr === '0' || sexStr === 'unknown') {
+            genderValue = 'other';
+          }
+        }
+        
         form.setFieldsValue({
           passportNo: fields.documentNumber || '',
           fullName: fields.firstName && fields.lastName ? `${fields.firstName} ${fields.lastName}`.trim() : '',
           country: fields.issuingState || '',
-          gender: fields.sex === 'M' ? 'male' : fields.sex === 'F' ? 'female' : 'other',
+          gender: genderValue,
           dateOfBirth: fields.birthDate ? dayjs(fields.birthDate, 'YYMMDD') : undefined,
+          issueDate: issueDate,
           expiryDate: fields.expirationDate ? dayjs(fields.expirationDate, 'YYMMDD') : undefined,
         } as any);
         
@@ -245,6 +271,9 @@ export default function PassportList() {
       issueDate: v.issueDate?.format('YYYY-MM-DD'),
       expiryDate: v.expiryDate?.format('YYYY-MM-DD'),
       mrzCode: v.mrzCode,
+      inStock: v.inStock,
+      isFollowing: v.isFollowing,
+      remark: v.remark,
     };
     // 判断护照是否真的发生变化，避免无效 PATCH 产生空变更日志
     const passportChanged = editing ? (
@@ -255,7 +284,10 @@ export default function PassportList() {
       dayjs(editing.dateOfBirth).format('YYYY-MM-DD') !== payload.dateOfBirth ||
       dayjs(editing.issueDate).format('YYYY-MM-DD') !== payload.issueDate ||
       dayjs(editing.expiryDate).format('YYYY-MM-DD') !== payload.expiryDate ||
-      editing.mrzCode !== payload.mrzCode
+      editing.mrzCode !== payload.mrzCode ||
+      editing.inStock !== payload.inStock ||
+      editing.isFollowing !== payload.isFollowing ||
+      editing.remark !== payload.remark
     ) : true;
     // 处理签证信息
     let visasToCreate: Visa[] = [];
@@ -574,7 +606,7 @@ export default function PassportList() {
                 </Col>
               </Row>
 
-              {/* 新增的第三行：姓名 + 国家代码 */}
+              {/* 新增的第三行：姓名 + 国籍 */}
               <Row gutter={12}>
                 <Col span={18}>
                   <Form.Item name="fullName" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
@@ -582,7 +614,7 @@ export default function PassportList() {
                   </Form.Item>
                 </Col>
                 <Col span={6}>
-                  <Form.Item name="country" label="国家代码" rules={[{ required: true, message: '请输入国家代码' }]}>
+                  <Form.Item name="country" label="国籍" rules={[{ required: true, message: '请输入国籍' }]}>
                     <Input placeholder="如 CN/US" />
                   </Form.Item>
                 </Col>
@@ -640,7 +672,20 @@ export default function PassportList() {
                 </Col>
                 <Col span={8}>
                   <Form.Item name="expiryDate" label="到期日期" rules={[{ required: true, message: '请选择到期日期' }]}>
-                    <DatePicker style={{ width: '100%' }} />
+                    <DatePicker 
+                      style={{ width: '100%' }}
+                      onChange={(date) => {
+                        if (date) {
+                          // 如果没有签发日期，自动计算签发日期
+                          const currentIssueDate = form.getFieldValue('issueDate');
+                          if (!currentIssueDate) {
+                            // 签发日期 = 到期日期的年份减10年，然后整个日期再加1天
+                            const issueDate = dayjs(date).subtract(10, 'year').add(1, 'day');
+                            form.setFieldValue('issueDate', issueDate);
+                          }
+                        }
+                      }}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
@@ -671,8 +716,8 @@ export default function PassportList() {
                     {fields.map((field) => (
                                               <Row key={field.key} gutter={8} align="middle" style={{ marginBottom: 12 }}>
                           <Col span={6}>
-                            <Form.Item name={[field.name, 'country']} fieldKey={[field.fieldKey!, 'country']} rules={[{ required: true, message: '请输入国家代码' }]}>
-                              <Input placeholder="国家代码" />
+                            <Form.Item name={[field.name, 'country']} fieldKey={[field.fieldKey!, 'country']} rules={[{ required: true, message: '请输入国籍' }]}>
+                              <Input placeholder="国籍" />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
@@ -703,7 +748,7 @@ export default function PassportList() {
 
       <Modal open={openVisa} title="新增签证" onOk={addVisa} onCancel={() => setOpenVisa(false)} okText="确定" cancelText="取消" destroyOnHidden>
         <Form form={visaForm} layout="vertical">
-          <Form.Item name="country" label="国家代码" rules={[{ required: true }]}>
+          <Form.Item name="country" label="国籍" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name="visaName" label="签证名称" rules={[{ required: true }]}>

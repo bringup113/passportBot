@@ -33,6 +33,10 @@ CREATE TABLE "public"."Passport" (
     "issueDate" DATE NOT NULL,
     "expiryDate" DATE NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'valid',
+    "inStock" BOOLEAN NOT NULL DEFAULT true,
+    "isFollowing" BOOLEAN NOT NULL DEFAULT false,
+    "remark" TEXT,
+    "mrzCode" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

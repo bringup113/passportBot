@@ -2,7 +2,15 @@ import { Button, Form, Input, Modal, Space, Table, message } from 'antd';
 import { useEffect, useState } from 'react';
 import http from '../../api/http';
 
-interface Client { id: string; name: string; remark?: string }
+interface Client { 
+  id: string; 
+  name: string; 
+  remark?: string;
+  _count?: {
+    passports: number;
+  };
+  passports?: Array<{ id: string }>;
+}
 
 export default function ClientList() {
   const [loading, setLoading] = useState(false);
@@ -66,8 +74,25 @@ export default function ClientList() {
     <div>
       <div className="page-header">客户管理</div>
       <div style={{ marginBottom: 12 }}>
-        <Space>
+        <Space wrap>
           <Button type="primary" onClick={onCreate}>新建客户</Button>
+          <div style={{ marginLeft: 16, padding: '8px 16px', backgroundColor: '#f0f0f0', borderRadius: '6px' }}>
+            <Space size="large">
+              <span>
+                总客户数: <strong>{data.length}</strong>
+              </span>
+              <span>
+                总护照数: <strong style={{ color: '#1890ff' }}>
+                  {data.reduce((sum, client) => sum + (client._count?.passports || 0), 0)}
+                </strong>
+              </span>
+              <span>
+                在库护照: <strong style={{ color: '#52c41a' }}>
+                  {data.reduce((sum, client) => sum + (client.passports?.length || 0), 0)}
+                </strong>
+              </span>
+            </Space>
+          </div>
         </Space>
       </div>
       <Table
@@ -77,6 +102,28 @@ export default function ClientList() {
         columns={[
           { title: '名称', dataIndex: 'name' },
           { title: '备注', dataIndex: 'remark' },
+          { 
+            title: '护照总数', 
+            dataIndex: ['_count', 'passports'], 
+            render: (value: number) => (
+              <span style={{ fontWeight: 'bold', color: '#1890ff' }}>
+                {value || 0}
+              </span>
+            ),
+            sorter: (a: Client, b: Client) => (a._count?.passports || 0) - (b._count?.passports || 0),
+            align: 'center'
+          },
+          { 
+            title: '在库护照', 
+            dataIndex: 'passports', 
+            render: (passports: Array<{ id: string }>) => (
+              <span style={{ fontWeight: 'bold', color: '#52c41a' }}>
+                {passports?.length || 0}
+              </span>
+            ),
+            sorter: (a: Client, b: Client) => (a.passports?.length || 0) - (b.passports?.length || 0),
+            align: 'center'
+          },
           {
             title: '操作',
             render: (_, record) => (

@@ -26,6 +26,14 @@ export class OverdueService {
       to.setDate(to.getDate() + params.days);
       where.expiryDate = { lte: to, gt: new Date() };
     }
-    return this.prisma.visa.findMany({ where, orderBy: { expiryDate: 'asc' }, include: { passport: true } });
+    return this.prisma.visa.findMany({ 
+      where, 
+      orderBy: { expiryDate: 'asc' }, 
+      include: { 
+        passport: { 
+          include: { client: true } 
+        } 
+      } 
+    });
   }
 }
