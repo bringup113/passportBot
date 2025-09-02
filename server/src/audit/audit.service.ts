@@ -37,6 +37,12 @@ export class AuditService {
       PASSPORT: ['passportNo', 'clientId', 'country', 'fullName', 'gender', 'dateOfBirth', 'issueDate', 'expiryDate', 'inStock', 'isFollowing', 'status', 'remark'],
       VISA: ['id', 'passportNo', 'country', 'visaName', 'expiryDate', 'status'],
       NOTIFY: ['enabled', 'telegramBotToken', 'threshold15', 'threshold30', 'threshold90', 'threshold180', 'chatId', 'displayName', 'isActive'],
+      SUPPLIER: ['name', 'remark'],
+      PRODUCT: ['name', 'price', 'costPrice', 'supplierId', 'status', 'remark'],
+      ORDER: ['passportNo', 'clientId', 'customerName', 'passportNumber', 'country', 'billStatus', 'totalAmount', 'totalCost', 'orderStatus', 'remark'],
+      ORDER_ITEM: ['orderId', 'productId', 'salePrice', 'costPrice', 'status', 'remark'],
+      BILL: ['orderIds', 'orderCount', 'clientId', 'totalAmount', 'paidAmount', 'remainingAmount', 'billStatus'],
+      PAYMENT: ['billId', 'amount', 'paymentDate', 'remark'],
     };
     const allow = allowMap[entity];
     if (!allow) return obj;
@@ -47,9 +53,39 @@ export class AuditService {
     return filtered;
   }
 
+  private generateEntityDisplayName(entity: string, obj: any): string {
+    switch (entity) {
+      case 'USER':
+        return obj.username || obj.id;
+      case 'CLIENT':
+        return obj.name || obj.id;
+      case 'PASSPORT':
+        return `${obj.fullName || '未知'} (${obj.passportNo || obj.id})`;
+      case 'VISA':
+        return `${obj.visaName || '未知签证'} (${obj.country || '未知国家'})`;
+      case 'NOTIFY':
+        return obj.displayName || '通知设置';
+      case 'SUPPLIER':
+        return obj.name || obj.id;
+      case 'PRODUCT':
+        return obj.name || obj.id;
+      case 'ORDER':
+        return `订单 - ${obj.customerName || '未知客户'} (${obj.passportNumber || obj.id})`;
+      case 'ORDER_ITEM':
+        return `订单明细 - ${obj.productId || obj.id}`;
+      case 'BILL':
+        return `账单 - ${obj.orderCount || 0}个订单`;
+      case 'PAYMENT':
+        return `付款记录 - $${obj.amount || 0}`;
+      default:
+        return obj.id;
+    }
+  }
+
   recordCreate(params: { userId?: string; entity: string; entityId: string; after: any }) {
     const sanitized = this.sanitizeByEntity(params.entity, params.after);
-    return this.record({ userId: params.userId, action: 'create', entity: params.entity, entityId: params.entityId, diffJson: { after: sanitized } });
+    const displayName = this.generateEntityDisplayName(params.entity, params.after);
+    return this.record({ userId: params.userId, action: 'create', entity: params.entity, entityId: displayName, diffJson: { after: sanitized } });
   }
 
   recordUpdate(params: { userId?: string; entity: string; entityId: string; before: any; after: any; excludeKeys?: string[] }) {
@@ -57,12 +93,14 @@ export class AuditService {
     const beforeFiltered = this.sanitizeByEntity(params.entity, params.before);
     const afterFiltered = this.sanitizeByEntity(params.entity, params.after);
     const changes = this.computeShallowDiff(beforeFiltered, afterFiltered, excludeKeys);
-    return this.record({ userId: params.userId, action: 'update', entity: params.entity, entityId: params.entityId, diffJson: { changes } });
+    const displayName = this.generateEntityDisplayName(params.entity, params.after);
+    return this.record({ userId: params.userId, action: 'update', entity: params.entity, entityId: displayName, diffJson: { changes } });
   }
 
   recordDelete(params: { userId?: string; entity: string; entityId: string; before: any }) {
     const sanitized = this.sanitizeByEntity(params.entity, params.before);
-    return this.record({ userId: params.userId, action: 'delete', entity: params.entity, entityId: params.entityId, diffJson: { before: sanitized } });
+    const displayName = this.generateEntityDisplayName(params.entity, params.before);
+    return this.record({ userId: params.userId, action: 'delete', entity: params.entity, entityId: displayName, diffJson: { before: sanitized } });
   }
 
   list(params: { entity?: string; entityId?: string; from?: Date; to?: Date; take?: number; skip?: number }) {

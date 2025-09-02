@@ -29,6 +29,8 @@ model Client {
   name      String     @unique
   remark    String?
   passports Passport[]
+  orders    Order[]
+  bills     Bill[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
@@ -49,6 +51,7 @@ model Passport {
   remark      String?
   mrzCode     String?
   visas       Visa[]
+  orders      Order[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -123,4 +126,112 @@ model NotificationLog {
   error        String?
   whitelistId  String?
   whitelist    TelegramWhitelist? @relation(fields: [whitelistId], references: [id])
+}
+
+// 供应商管理
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  remark    String?
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// 产品管理
+model Product {
+  id          String    @id @default(uuid())
+  name        String
+  price       Decimal   @db.Decimal(10, 2)  // 销售价格
+  costPrice   Decimal   @db.Decimal(10, 2)  // 成本价格
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  status      String    @default("active") // active, inactive
+  remark      String?
+  orderItems  OrderItem[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([supplierId])
+  @@index([status])
+}
+
+// 订单管理
+model Order {
+  id              String      @id @default(uuid())
+  passportNo      String
+  passport        Passport    @relation(fields: [passportNo], references: [passportNo])
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id])
+  customerName    String      // 从护照获取，不允许修改
+  passportNumber  String      // 从护照获取，不允许修改
+  country         String      // 从护照获取，不允许修改
+  billStatus      String      @default("unbilled") // unbilled, billed
+  totalAmount     Decimal     @db.Decimal(10, 2)  // 销售价格总和
+  totalCost       Decimal     @db.Decimal(10, 2)  // 成本价格总和
+  orderStatus     String      @default("pending") // pending, processing, completed, cancelled
+  remark          String?
+  orderItems      OrderItem[]
+  bills           Bill[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([passportNo])
+  @@index([clientId])
+  @@index([orderStatus])
+  @@index([billStatus])
+}
+
+// 订单明细（业务信息）
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  salePrice   Decimal @db.Decimal(10, 2)  // 销售价格（可手动修改）
+  costPrice   Decimal @db.Decimal(10, 2)  // 成本价格（可手动修改）
+  status      String  @default("pending") // pending, processing, completed
+  remark      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([status])
+}
+
+// 账单管理
+model Bill {
+  id              String     @id @default(uuid())
+  orderIds        String[]   // 关联的订单ID数组
+  orderCount      Int
+  clientId        String
+  client          Client     @relation(fields: [clientId], references: [id])
+  totalAmount     Decimal    @db.Decimal(10, 2)  // 账单总金额
+  paidAmount      Decimal    @default(0) @db.Decimal(10, 2)  // 已付金额
+  remainingAmount Decimal    @db.Decimal(10, 2)  // 剩余金额
+  billStatus      String     @default("unpaid") // unpaid, partial, paid
+  orders          Order[]
+  payments        Payment[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([clientId])
+  @@index([billStatus])
+}
+
+// 付款记录
+model Payment {
+  id          String    @id @default(uuid())
+  billId      String
+  bill        Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  amount      Decimal   @db.Decimal(10, 2)
+  paymentDate DateTime  @db.Date
+  remark      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([billId])
+  @@index([paymentDate])
 }

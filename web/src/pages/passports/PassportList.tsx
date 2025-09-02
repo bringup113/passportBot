@@ -34,6 +34,14 @@ export default function PassportList() {
   const [days, setDays] = useState<number | undefined>();
   const [expired, setExpired] = useState<boolean | undefined>();
 
+  // 分页状态
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 0
+  });
+
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Passport | null>(null);
 
@@ -155,6 +163,15 @@ export default function PassportList() {
     }
   };
 
+  // 分页变化处理
+  const handleTableChange = (paginationInfo: any) => {
+    setPagination(prev => ({
+      ...prev,
+      current: paginationInfo.current || 1,
+      pageSize: paginationInfo.pageSize || 10
+    }));
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -163,15 +180,18 @@ export default function PassportList() {
       if (clientId) params.clientId = clientId;
       if (days) params.days = days;
       if (expired) params.expired = true;
+      params.page = pagination.current;
+      params.pageSize = pagination.pageSize;
       const res = await http.get('/passports', { params });
-      setData(res.data);
+      setData(res.data.data);
+      setPagination(prev => ({ ...prev, total: res.data.total, totalPages: res.data.totalPages }));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { fetchClients(); }, []);
-  useEffect(() => { fetchData(); }, [q, clientId, days, expired]);
+  useEffect(() => { fetchData(); }, [q, clientId, days, expired, pagination.current, pagination.pageSize]);
 
   const refreshDetail = async (passportNo: string) => {
     const res = await http.get(`/passports/${passportNo}`);
@@ -436,6 +456,27 @@ export default function PassportList() {
         loading={loading}
         dataSource={data}
         onRow={(record) => ({ onClick: () => onRowClick(record) })}
+        onChange={handleTableChange}
+        pagination={{
+          current: pagination.current,
+          pageSize: pagination.pageSize,
+          total: pagination.total,
+          showSizeChanger: true,
+          showQuickJumper: true,
+          showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          size: 'default',
+          showLessItems: false,
+          hideOnSinglePage: false,
+          locale: {
+            items_per_page: '条/页',
+            jump_to: '跳至',
+            jump_to_confirm: '确定',
+            page: '页',
+            prev_page: '上一页',
+            next_page: '下一页'
+          }
+        }}
         columns={[
           { title: '护照号', dataIndex: 'passportNo' },
           { title: '客户', dataIndex: ['client','name'], render: (_: any, r: Passport) => r.client?.name },

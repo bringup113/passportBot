@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PassportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(params: { q?: string; clientId?: string; days?: number; expired?: boolean }) {
+  list(params: { q?: string; clientId?: string; days?: number; expired?: boolean; page?: number; pageSize?: number }) {
     const where: any = {};
     if (params.q) {
       where.OR = [
@@ -21,7 +21,27 @@ export class PassportsService {
       to.setDate(to.getDate() + params.days);
       where.expiryDate = { lte: to, gt: new Date() };
     }
-    return this.prisma.passport.findMany({ where, orderBy: { expiryDate: 'asc' }, include: { client: true } });
+
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 10;
+    const skip = (page - 1) * pageSize;
+
+    return this.prisma.$transaction([
+      this.prisma.passport.count({ where }),
+      this.prisma.passport.findMany({ 
+        where, 
+        orderBy: { expiryDate: 'asc' }, 
+        include: { client: true },
+        skip,
+        take: pageSize
+      })
+    ]).then(([total, data]) => ({
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize)
+    }));
   }
 
   async get(passportNo: string) {

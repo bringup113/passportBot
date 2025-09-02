@@ -12,6 +12,10 @@ import { OverdueModule } from './overdue/overdue.module';
 import { AuditModule } from './audit/audit.module';
 import { NotifyModule } from './notify/notify.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { SuppliersModule } from './suppliers/suppliers.module';
+import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
+import { BillsModule } from './bills/bills.module';
 
 @Module({
   imports: [
@@ -25,7 +29,11 @@ import { DashboardModule } from './dashboard/dashboard.module';
     OverdueModule,
     AuditModule,
     NotifyModule,
-      DashboardModule,
+    DashboardModule,
+    SuppliersModule,
+    ProductsModule,
+    OrdersModule,
+    BillsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

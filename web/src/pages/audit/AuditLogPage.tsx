@@ -23,7 +23,19 @@ export default function AuditLogPage() {
   const [detail, setDetail] = useState<Audit | null>(null);
 
   const actionMap = useMemo(() => ({ create: '新增', update: '更新', delete: '删除' }), []);
-  const entityMap = useMemo(() => ({ USER: '用户', CLIENT: '客户', PASSPORT: '护照', VISA: '签证', NOTIFY: '通知' }), []);
+  const entityMap = useMemo(() => ({ 
+    USER: '用户', 
+    CLIENT: '客户', 
+    PASSPORT: '护照', 
+    VISA: '签证', 
+    NOTIFY: '通知',
+    SUPPLIER: '供应商',
+    PRODUCT: '产品',
+    ORDER: '订单',
+    ORDER_ITEM: '订单明细',
+    BILL: '账单',
+    PAYMENT: '付款记录'
+  }), []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -215,6 +227,15 @@ export default function AuditLogPage() {
         enabled: '开启通知', telegramBotToken: 'Bot Token', threshold15: '15天阈值', threshold30: '30天阈值', threshold90: '90天阈值', threshold180: '180天阈值',
         chatId: 'Chat ID', displayName: '显示名', isActive: '启用状态', id: 'ID'
       },
+      SUPPLIER: { name: '供应商名称', remark: '备注', id: 'ID' },
+      PRODUCT: { name: '产品名称', price: '销售价格', costPrice: '成本价格', supplierId: '供应商', status: '状态', remark: '备注', id: 'ID' },
+      ORDER: { 
+        passportNo: '护照号码', clientId: '客户', customerName: '姓名', passportNumber: '护照号码', country: '国家', 
+        billStatus: '账单状态', totalAmount: '总金额', totalCost: '总成本', orderStatus: '订单状态', remark: '备注', id: 'ID' 
+      },
+      ORDER_ITEM: { orderId: '订单', productId: '产品', salePrice: '销售价格', costPrice: '成本价格', status: '状态', remark: '备注', id: 'ID' },
+      BILL: { orderIds: '订单列表', orderCount: '订单数量', clientId: '客户', totalAmount: '账单金额', paidAmount: '已付金额', remainingAmount: '剩余款项', billStatus: '账单状态', id: 'ID' },
+      PAYMENT: { billId: '账单', amount: '付款金额', paymentDate: '付款日期', remark: '备注', id: 'ID' },
     };
     const map = mapAll[entity] || {};
     const entries = Object.entries(obj || {});
@@ -233,11 +254,44 @@ export default function AuditLogPage() {
     );
   }
 
-  function formatValForField(_entity: string, key: string, v: any) {
+  function formatValForField(entity: string, key: string, v: any) {
     // 特定字段格式
     if (typeof v === 'boolean') return v ? '是' : '否';
     if (key.toLowerCase().includes('date')) return v ? dayjs(v).format('YYYY-MM-DD') : '';
     if (key.toLowerCase().includes('at')) return v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '';
+    
+    // 价格字段格式化
+    if (key.toLowerCase().includes('price') || key.toLowerCase().includes('amount') || key.toLowerCase().includes('cost')) {
+      return v ? `$${Number(v).toFixed(2)}` : '$0.00';
+    }
+    
+    // 状态字段格式化
+    if (key.toLowerCase().includes('status')) {
+      const statusMap: Record<string, string> = {
+        'active': '启用',
+        'inactive': '禁用',
+        'pending': '待处理',
+        'processing': '处理中',
+        'completed': '已完成',
+        'unpaid': '待付款',
+        'partial': '已付部分',
+        'paid': '已付款',
+        'valid': '有效',
+        'expired': '已过期'
+      };
+      return statusMap[v] || v;
+    }
+    
+    // 性别字段格式化
+    if (key.toLowerCase().includes('gender')) {
+      const genderMap: Record<string, string> = {
+        'male': '男',
+        'female': '女',
+        'other': '其他'
+      };
+      return genderMap[v] || v;
+    }
+    
     return formatVal(v);
   }
 
@@ -254,6 +308,15 @@ export default function AuditLogPage() {
         enabled: '开启通知', telegramBotToken: 'Bot Token', threshold15: '15天阈值', threshold30: '30天阈值', threshold90: '90天阈值', threshold180: '180天阈值',
         chatId: 'Chat ID', displayName: '显示名', isActive: '启用状态', id: 'ID'
       },
+      SUPPLIER: { name: '供应商名称', remark: '备注', id: 'ID' },
+      PRODUCT: { name: '产品名称', price: '销售价格', costPrice: '成本价格', supplierId: '供应商', status: '状态', remark: '备注', id: 'ID' },
+      ORDER: { 
+        passportNo: '护照号码', clientId: '客户', customerName: '姓名', passportNumber: '护照号码', country: '国家', 
+        billStatus: '账单状态', totalAmount: '总金额', totalCost: '总成本', orderStatus: '订单状态', remark: '备注', id: 'ID' 
+      },
+      ORDER_ITEM: { orderId: '订单', productId: '产品', salePrice: '销售价格', costPrice: '成本价格', status: '状态', remark: '备注', id: 'ID' },
+      BILL: { orderIds: '订单列表', orderCount: '订单数量', clientId: '客户', totalAmount: '账单金额', paidAmount: '已付金额', remainingAmount: '剩余款项', billStatus: '账单状态', id: 'ID' },
+      PAYMENT: { billId: '账单', amount: '付款金额', paymentDate: '付款日期', remark: '备注', id: 'ID' },
     };
     return dict[entity] || {};
   }

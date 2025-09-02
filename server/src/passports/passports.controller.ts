@@ -11,8 +11,22 @@ export class PassportsController {
   constructor(private readonly passports: PassportsService, private readonly audit: AuditService) {}
 
   @Get()
-  list(@Query('q') q?: string, @Query('clientId') clientId?: string, @Query('days') days?: string, @Query('expired') expired?: string) {
-    return this.passports.list({ q, clientId, days: days ? Number(days) : undefined, expired: expired === 'true' });
+  list(
+    @Query('q') q?: string, 
+    @Query('clientId') clientId?: string, 
+    @Query('days') days?: string, 
+    @Query('expired') expired?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string
+  ) {
+    return this.passports.list({ 
+      q, 
+      clientId, 
+      days: days ? Number(days) : undefined, 
+      expired: expired === 'true',
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 10
+    });
   }
 
   @Get(':passportNo')

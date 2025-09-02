@@ -1,7 +1,7 @@
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Layout, Menu, theme, Grid, Button } from 'antd';
 import type { ReactElement } from 'react';
-import { DashboardOutlined, TeamOutlined, IdcardOutlined, AlertOutlined, UserOutlined, BellOutlined, FileProtectOutlined } from '@ant-design/icons';
+import { DashboardOutlined, TeamOutlined, IdcardOutlined, AlertOutlined, UserOutlined, BellOutlined, FileProtectOutlined, ShopOutlined, ShoppingCartOutlined, FileTextOutlined, DollarOutlined } from '@ant-design/icons';
 import './App.css';
 import LoginPage from './pages/LoginPage';
 import ClientList from './pages/clients/ClientList';
@@ -11,6 +11,10 @@ import UserList from './pages/users/UserList';
 import NotifySettingPage from './pages/notify/NotifySettingPage';
 import AuditLogPage from './pages/audit/AuditLogPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import SupplierList from './pages/suppliers/SupplierList';
+import ProductList from './pages/products/ProductList';
+import OrderList from './pages/orders/OrderList';
+import BillList from './pages/bills/BillList';
 
 const { Header, Content, Sider } = Layout;
 
@@ -49,6 +53,10 @@ function AppLayout() {
             { key: 'dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
             { key: 'clients', icon: <TeamOutlined />, label: '客户管理' },
             { key: 'passports', icon: <IdcardOutlined />, label: '护照管理' },
+            { key: 'suppliers', icon: <ShopOutlined />, label: '供应商管理' },
+            { key: 'products', icon: <ShoppingCartOutlined />, label: '产品管理' },
+            { key: 'orders', icon: <FileTextOutlined />, label: '订单管理' },
+            { key: 'bills', icon: <DollarOutlined />, label: '账单管理' },
             { key: 'overdue', icon: <AlertOutlined />, label: '逾期管理' },
             { key: 'users', icon: <UserOutlined />, label: '用户管理' },
             { key: 'notify', icon: <BellOutlined />, label: '通知设置' },
@@ -91,6 +99,10 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="clients" element={<ClientList />} />
         <Route path="passports" element={<PassportList />} />
+        <Route path="suppliers" element={<SupplierList />} />
+        <Route path="products" element={<ProductList />} />
+        <Route path="orders" element={<OrderList />} />
+        <Route path="bills" element={<BillList />} />
         <Route path="overdue" element={<OverduePage />} />
         <Route path="users" element={<UserList />} />
         <Route path="notify" element={<NotifySettingPage />} />
