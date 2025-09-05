@@ -274,16 +274,6 @@ export class OrdersService {
     const totalCost = data.orderItems.reduce((sum, item) => sum + item.costPrice, 0);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // 更新订单
-      const order = await tx.order.update({
-        where: { id },
-        data: {
-          totalAmount,
-          totalCost,
-          remark: data.remark
-        }
-      });
-
       // 删除现有订单明细
       await tx.orderItem.deleteMany({
         where: { orderId: id }
@@ -304,6 +294,29 @@ export class OrdersService {
           })
         )
       );
+
+      // 根据业务明细状态自动计算订单状态
+      let orderStatus = 'pending';
+      const itemStatuses = orderItems.map(item => item.status);
+      
+      if (itemStatuses.every(status => status === 'completed')) {
+        orderStatus = 'completed';
+      } else if (itemStatuses.some(status => status === 'processing')) {
+        orderStatus = 'processing';
+      } else if (itemStatuses.every(status => status === 'pending')) {
+        orderStatus = 'pending';
+      }
+
+      // 更新订单
+      const order = await tx.order.update({
+        where: { id },
+        data: {
+          totalAmount,
+          totalCost,
+          orderStatus,
+          remark: data.remark
+        }
+      });
 
       return { ...order, orderItems };
     });

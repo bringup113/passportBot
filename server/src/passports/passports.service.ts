@@ -26,11 +26,18 @@ export class PassportsService {
     const pageSize = params.pageSize || 10;
     const skip = (page - 1) * pageSize;
 
+    // 根据筛选条件决定排序方式
+    // 如果选择了时间筛选（<15, <30, <90, <180, 已过期），按到期时间排序
+    // 否则按创建时间排序
+    const orderBy = (params.days || params.expired) 
+      ? { expiryDate: 'asc' as const }  // 按到期时间升序
+      : { createdAt: 'desc' as const }; // 按创建时间降序
+
     return this.prisma.$transaction([
       this.prisma.passport.count({ where }),
       this.prisma.passport.findMany({ 
         where, 
-        orderBy: { expiryDate: 'asc' }, 
+        orderBy, 
         include: { client: true },
         skip,
         take: pageSize
