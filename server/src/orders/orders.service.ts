@@ -73,8 +73,39 @@ export class OrdersService {
       this.prisma.order.count({ where })
     ]);
 
+    // 手动查询关联的账单信息
+    const orderIds = items.map(item => item.id);
+    const bills = await this.prisma.bill.findMany({
+      where: {
+        orderIds: {
+          hasSome: orderIds
+        }
+      },
+      select: {
+        id: true,
+        orderIds: true,
+        billStatus: true,
+        paidAmount: true,
+        remainingAmount: true
+      }
+    });
+
+    // 为每个订单添加关联的账单信息
+    const itemsWithBills = items.map(order => {
+      const orderBills = bills.filter(bill => bill.orderIds.includes(order.id));
+      return {
+        ...order,
+        bills: orderBills.map(bill => ({
+          id: bill.id,
+          billStatus: bill.billStatus,
+          paidAmount: bill.paidAmount,
+          remainingAmount: bill.remainingAmount
+        }))
+      };
+    });
+
     // 确保 Decimal 类型正确序列化为数字
-    const serializedItems = items.map(item => ({
+    const serializedItems = itemsWithBills.map(item => ({
       ...item,
       totalAmount: Number(item.totalAmount),
       totalCost: Number(item.totalCost),
@@ -82,6 +113,11 @@ export class OrdersService {
         ...orderItem,
         salePrice: Number(orderItem.salePrice),
         costPrice: Number(orderItem.costPrice)
+      })),
+      bills: item.bills.map(bill => ({
+        ...bill,
+        paidAmount: Number(bill.paidAmount),
+        remainingAmount: Number(bill.remainingAmount)
       }))
     }));
 
@@ -192,6 +228,18 @@ export class OrdersService {
     const totalAmount = data.orderItems.reduce((sum, item) => sum + item.salePrice, 0);
     const totalCost = data.orderItems.reduce((sum, item) => sum + item.costPrice, 0);
 
+    // 根据业务明细状态自动计算订单状态
+    let orderStatus = 'pending';
+    const itemStatuses = data.orderItems.map(item => item.status || 'pending');
+    
+    if (itemStatuses.every(status => status === 'completed')) {
+      orderStatus = 'completed';
+    } else if (itemStatuses.some(status => status === 'processing')) {
+      orderStatus = 'processing';
+    } else if (itemStatuses.every(status => status === 'pending')) {
+      orderStatus = 'pending';
+    }
+
     // 创建订单和订单明细
     const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
@@ -203,6 +251,7 @@ export class OrdersService {
           country: passport.country,
           totalAmount,
           totalCost,
+          orderStatus,
           remark: data.remark
         }
       });
@@ -274,25 +323,58 @@ export class OrdersService {
     const totalCost = data.orderItems.reduce((sum, item) => sum + item.costPrice, 0);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // 删除现有订单明细
-      await tx.orderItem.deleteMany({
+      // 获取现有订单明细
+      const existingOrderItems = await tx.orderItem.findMany({
         where: { orderId: id }
       });
 
-      // 创建新的订单明细
+      // 分离新增、更新和删除的业务明细
+      const incomingItemIds = data.orderItems
+        .filter(item => item.id)
+        .map(item => item.id!);
+      
+      const existingItemIds = existingOrderItems.map(item => item.id);
+      
+      // 删除不再存在的业务明细
+      const itemsToDelete = existingItemIds.filter(id => !incomingItemIds.includes(id));
+      if (itemsToDelete.length > 0) {
+        await tx.orderItem.deleteMany({
+          where: { 
+            id: { in: itemsToDelete },
+            orderId: id 
+          }
+        });
+      }
+
+      // 更新或创建业务明细
       const orderItems = await Promise.all(
-        data.orderItems.map(item =>
-          tx.orderItem.create({
-            data: {
-              orderId: id,
-              productId: item.productId,
-              salePrice: item.salePrice,
-              costPrice: item.costPrice,
-              status: item.status || 'pending',
-              remark: item.remark
-            }
-          })
-        )
+        data.orderItems.map(async (item) => {
+          if (item.id) {
+            // 更新现有业务明细
+            return await tx.orderItem.update({
+              where: { id: item.id },
+              data: {
+                productId: item.productId,
+                salePrice: item.salePrice,
+                costPrice: item.costPrice,
+                status: item.status || 'pending',
+                remark: item.remark
+              }
+            });
+          } else {
+            // 创建新业务明细
+            return await tx.orderItem.create({
+              data: {
+                orderId: id,
+                productId: item.productId,
+                salePrice: item.salePrice,
+                costPrice: item.costPrice,
+                status: item.status || 'pending',
+                remark: item.remark
+              }
+            });
+          }
+        })
       );
 
       // 根据业务明细状态自动计算订单状态

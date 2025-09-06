@@ -16,3 +16,20 @@ html, body { width: 100%; overflow-x: hidden; }
 @media (max-width: 768px) {
   .page-container { padding: 8px; }
 }
+
+/* 修复 Select 组件 placeholder 不显示的问题 */
+.ant-select .ant-select-selector .ant-select-selection-placeholder {
+  color: #bfbfbf !important;
+  opacity: 1 !important;
+}
+
+.ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+  color: #bfbfbf !important;
+  opacity: 1 !important;
+}
+
+/* 确保 Select 组件在未选中状态下显示 placeholder */
+.ant-select:not(.ant-select-focused):not(.ant-select-open) .ant-select-selector .ant-select-selection-placeholder {
+  color: #bfbfbf !important;
+  opacity: 1 !important;
+}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, message, Popconfirm, Card, Row, Col, Select, InputNumber, DatePicker, Radio, Divider } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import http from '../../api/http';
 import dayjs from 'dayjs';
 
@@ -43,6 +44,13 @@ interface OrderItem {
   remark?: string;
 }
 
+interface Bill {
+  id: string;
+  billStatus: string;
+  paidAmount: number;
+  remainingAmount: number;
+}
+
 interface Order {
   id: string;
   passportNo: string;
@@ -58,11 +66,13 @@ interface Order {
   orderStatus: string;
   remark?: string;
   orderItems: OrderItem[];
+  bills: Bill[];
   createdAt: string;
   updatedAt: string;
 }
 
 export default function OrderList() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [passports, setPassports] = useState<Passport[]>([]);
@@ -72,9 +82,9 @@ export default function OrderList() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
-  const [selectedClient, setSelectedClient] = useState<string>('');
-  const [selectedOrderStatus, setSelectedOrderStatus] = useState<string>('');
-  const [selectedBillStatus, setSelectedBillStatus] = useState<string>('');
+  const [selectedClient, setSelectedClient] = useState<string | undefined>(undefined);
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState<string | undefined>(undefined);
+  const [selectedBillStatus, setSelectedBillStatus] = useState<string | undefined>(undefined);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
@@ -288,6 +298,7 @@ export default function OrderList() {
       const orderData = {
         passportNo: values.passportNo,
         orderItems: orderItems.map(item => ({
+          id: item.id, // 包含ID用于更新
           productId: item.productId,
           salePrice: item.salePrice,
           costPrice: item.costPrice,
@@ -339,6 +350,14 @@ export default function OrderList() {
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
+  const handleViewBill = (order: Order) => {
+    if (order.bills && order.bills.length > 0) {
+      const billId = order.bills[0].id;
+      // 跳转到账单管理页面，并传递账单ID参数
+      navigate(`/bills?billId=${billId}`);
+    }
+  };
+
   const columns = [
     {
       title: '客户',
@@ -379,12 +398,38 @@ export default function OrderList() {
       title: '账单状态',
       dataIndex: 'billStatus',
       key: 'billStatus',
-      render: (status: string) => {
+      render: (status: string, record: Order) => {
+        if (status === 'unbilled') {
+          return <span style={{ color: '#faad14' }}>未生成账单</span>;
+        }
+        return (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => handleViewBill(record)}
+          >
+            查看账单
+          </Button>
+        );
+      },
+    },
+    {
+      title: '支付状态',
+      key: 'paymentStatus',
+      render: (_: any, record: Order) => {
+        if (record.billStatus === 'unbilled') {
+          return <span style={{ color: '#999' }}>-</span>;
+        }
+        const bill = record.bills[0]; // 取第一个账单（通常一个订单只关联一个账单）
+        if (!bill) {
+          return <span style={{ color: '#999' }}>-</span>;
+        }
         const statusMap: Record<string, { text: string; color: string }> = {
-          unbilled: { text: '未生成账单', color: '#faad14' },
-          billed: { text: '已生成账单', color: '#52c41a' }
+          unpaid: { text: '未支付', color: '#faad14' },
+          partial: { text: '已付部分', color: '#1890ff' },
+          paid: { text: '已支付', color: '#52c41a' }
         };
-        const statusInfo = statusMap[status] || { text: status, color: '#666' };
+        const statusInfo = statusMap[bill.billStatus] || { text: bill.billStatus, color: '#666' };
         return <span style={{ color: statusInfo.color }}>{statusInfo.text}</span>;
       },
     },
@@ -445,62 +490,50 @@ export default function OrderList() {
   return (
     <div>
       <Card>
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Input.Search
-              placeholder="搜索客户，姓名、护照号码或国家"
-              allowClear
-              onSearch={handleSearch}
-              enterButton={<SearchOutlined />}
-            />
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="选择客户"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedClient}
-              onChange={handleClientChange}
-            >
-              {clients.map(client => (
-                <Select.Option key={client.id} value={client.id}>
-                  {client.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="订单状态"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedOrderStatus}
-              onChange={handleOrderStatusChange}
-            >
-              <Select.Option value="pending">待处理</Select.Option>
-              <Select.Option value="processing">处理中</Select.Option>
-              <Select.Option value="completed">已完成</Select.Option>
-              <Select.Option value="cancelled">已取消</Select.Option>
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="账单状态"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedBillStatus}
-              onChange={handleBillStatusChange}
-            >
-              <Select.Option value="unbilled">未生成账单</Select.Option>
-              <Select.Option value="billed">已生成账单</Select.Option>
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-              新建订单
-            </Button>
-          </Col>
-        </Row>
+        <Space wrap style={{ marginBottom: 16 }}>
+          <Input.Search
+            placeholder="搜索客户，姓名、护照号码或国家"
+            allowClear
+            onSearch={handleSearch}
+            enterButton={<SearchOutlined />}
+            style={{ width: 280 }}
+          />
+          <Select
+            placeholder="按客户筛选"
+            allowClear
+            style={{ width: 180 }}
+            value={selectedClient}
+            options={clients.map(client => ({ label: client.name, value: client.id }))}
+            onChange={handleClientChange}
+          />
+          <Select
+            placeholder="按订单状态筛选"
+            allowClear
+            style={{ width: 180 }}
+            value={selectedOrderStatus}
+            options={[
+              { label: '待处理', value: 'pending' },
+              { label: '处理中', value: 'processing' },
+              { label: '已完成', value: 'completed' },
+              { label: '已取消', value: 'cancelled' }
+            ]}
+            onChange={handleOrderStatusChange}
+          />
+          <Select
+            placeholder="按账单状态筛选"
+            allowClear
+            style={{ width: 180 }}
+            value={selectedBillStatus}
+            options={[
+              { label: '未生成账单', value: 'unbilled' },
+              { label: '已生成账单', value: 'billed' }
+            ]}
+            onChange={handleBillStatusChange}
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+            新建订单
+          </Button>
+        </Space>
 
         <Table
           columns={columns}

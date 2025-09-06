@@ -29,8 +29,8 @@ export default function ProductList() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
-  const [selectedSupplier, setSelectedSupplier] = useState<string>('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
+  const [selectedSupplier, setSelectedSupplier] = useState<string | undefined>(undefined);
+  const [selectedStatus, setSelectedStatus] = useState<string | undefined>(undefined);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
@@ -211,48 +211,37 @@ export default function ProductList() {
   return (
     <div>
       <Card>
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Input.Search
-              placeholder="搜索产品名称或备注"
-              allowClear
-              onSearch={handleSearch}
-              enterButton={<SearchOutlined />}
-            />
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="选择供应商"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedSupplier}
-              onChange={handleSupplierChange}
-            >
-              {suppliers.map(supplier => (
-                <Select.Option key={supplier.id} value={supplier.id}>
-                  {supplier.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="选择状态"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedStatus}
-              onChange={handleStatusChange}
-            >
-              <Select.Option value="active">启用</Select.Option>
-              <Select.Option value="inactive">禁用</Select.Option>
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-              新增产品
-            </Button>
-          </Col>
-        </Row>
+        <Space wrap style={{ marginBottom: 16 }}>
+          <Input.Search
+            placeholder="搜索产品名称或备注"
+            allowClear
+            onSearch={handleSearch}
+            enterButton={<SearchOutlined />}
+            style={{ width: 220 }}
+          />
+          <Select
+            placeholder="选择供应商"
+            allowClear
+            style={{ width: 180 }}
+            value={selectedSupplier}
+            options={suppliers.map(supplier => ({ label: supplier.name, value: supplier.id }))}
+            onChange={handleSupplierChange}
+          />
+          <Select
+            placeholder="选择状态"
+            allowClear
+            style={{ width: 180 }}
+            value={selectedStatus}
+            options={[
+              { label: '启用', value: 'active' },
+              { label: '禁用', value: 'inactive' }
+            ]}
+            onChange={handleStatusChange}
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+            新增产品
+          </Button>
+        </Space>
 
         <Table
           columns={columns}
@@ -330,13 +319,10 @@ export default function ProductList() {
             label="供应商"
             rules={[{ required: true, message: '请选择供应商' }]}
           >
-            <Select placeholder="请选择供应商">
-              {suppliers.map(supplier => (
-                <Select.Option key={supplier.id} value={supplier.id}>
-                  {supplier.name}
-                </Select.Option>
-              ))}
-            </Select>
+            <Select
+              placeholder="请选择供应商"
+              options={suppliers.map(supplier => ({ label: supplier.name, value: supplier.id }))}
+            />
           </Form.Item>
 
           <Form.Item

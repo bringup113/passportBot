@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, message, Popconfirm, Card, Row, Col, Select, InputNumber, DatePicker, Tabs, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined, DollarOutlined } from '@ant-design/icons';
+import { useSearchParams } from 'react-router-dom';
 import http from '../../api/http';
 import dayjs from 'dayjs';
 import BillPreview from '../../components/BillPreview';
@@ -64,6 +65,7 @@ interface Bill {
 }
 
 export default function BillList() {
+  const [searchParams] = useSearchParams();
   const [bills, setBills] = useState<Bill[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -75,8 +77,8 @@ export default function BillList() {
   const [form] = Form.useForm();
   const [paymentForm] = Form.useForm();
   const [searchText, setSearchText] = useState('');
-  const [selectedClient, setSelectedClient] = useState<string>('');
-  const [selectedBillStatus, setSelectedBillStatus] = useState<string>('');
+  const [selectedClient, setSelectedClient] = useState<string | undefined>(undefined);
+  const [selectedBillStatus, setSelectedBillStatus] = useState<string | undefined>(undefined);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     current: 1,
@@ -145,6 +147,14 @@ export default function BillList() {
   useEffect(() => {
     loadBills(pagination.current, pagination.pageSize, searchText, selectedClient, selectedBillStatus);
   }, [pagination.current, pagination.pageSize, searchText, selectedClient, selectedBillStatus]);
+
+  // 处理URL参数，自动打开指定的账单详情
+  useEffect(() => {
+    const billId = searchParams.get('billId');
+    if (billId) {
+      handleViewDetailById(billId);
+    }
+  }, [searchParams]);
 
   const handleCreateBill = () => {
     setSelectedOrders([]);
@@ -237,6 +247,16 @@ export default function BillList() {
   const handleViewDetail = async (bill: Bill) => {
     try {
       const response = await http.get(`/bills/${bill.id}`);
+      setSelectedBill(response.data);
+      setDetailModalVisible(true);
+    } catch (error) {
+      message.error('加载账单详情失败');
+    }
+  };
+
+  const handleViewDetailById = async (billId: string) => {
+    try {
+      const response = await http.get(`/bills/${billId}`);
       setSelectedBill(response.data);
       setDetailModalVisible(true);
     } catch (error) {
@@ -351,49 +371,38 @@ export default function BillList() {
   return (
     <div>
       <Card>
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Input.Search
-              placeholder="搜索客户名称"
-              allowClear
-              onSearch={handleSearch}
-              enterButton={<SearchOutlined />}
-            />
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="选择客户"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedClient}
-              onChange={handleClientChange}
-            >
-              {clients.map(client => (
-                <Select.Option key={client.id} value={client.id}>
-                  {client.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="账单状态"
-              allowClear
-              style={{ width: '100%' }}
-              value={selectedBillStatus}
-              onChange={handleBillStatusChange}
-            >
-              <Select.Option value="unpaid">待付款</Select.Option>
-              <Select.Option value="partial">已付部分</Select.Option>
-              <Select.Option value="paid">已付款</Select.Option>
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateBill}>
-              生成账单
-            </Button>
-          </Col>
-        </Row>
+        <Space wrap style={{ marginBottom: 16 }}>
+          <Input.Search
+            placeholder="搜索客户名称或护照姓名"
+            allowClear
+            onSearch={handleSearch}
+            enterButton={<SearchOutlined />}
+            style={{ width: 280 }}
+          />
+          <Select
+            placeholder="按客户筛选"
+            allowClear
+            style={{ width: 180 }}
+            value={selectedClient}
+            options={clients.map(client => ({ label: client.name, value: client.id }))}
+            onChange={handleClientChange}
+          />
+          <Select
+            placeholder="按支付状态筛选"
+            allowClear
+            style={{ width: 180 }}
+            value={selectedBillStatus}
+            options={[
+              { label: '待付款', value: 'unpaid' },
+              { label: '已付部分', value: 'partial' },
+              { label: '已付款', value: 'paid' }
+            ]}
+            onChange={handleBillStatusChange}
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateBill}>
+            生成账单
+          </Button>
+        </Space>
 
         <Table
           columns={columns}
@@ -435,14 +444,9 @@ export default function BillList() {
           >
             <Select
               placeholder="请选择客户"
+              options={clients.map(client => ({ label: client.name, value: client.id }))}
               onChange={handleClientChange}
-            >
-              {clients.map(client => (
-                <Select.Option key={client.id} value={client.id}>
-                  {client.name}
-                </Select.Option>
-              ))}
-            </Select>
+            />
           </Form.Item>
 
           <Form.Item label="选择订单">

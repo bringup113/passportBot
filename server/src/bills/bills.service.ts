@@ -16,9 +16,32 @@ export class BillsService {
     const where: any = {};
     
     if (q) {
-      where.client = {
-        name: { contains: q, mode: 'insensitive' as const }
-      };
+      // 先查找包含指定客户名称的订单ID
+      const matchingOrders = await this.prisma.order.findMany({
+        where: {
+          customerName: { contains: q, mode: 'insensitive' as const }
+        },
+        select: { id: true }
+      });
+      
+      const matchingOrderIds = matchingOrders.map(order => order.id);
+      
+      where.OR = [
+        {
+          client: {
+            name: { contains: q, mode: 'insensitive' as const }
+          }
+        }
+      ];
+      
+      // 如果有匹配的订单，添加订单ID搜索条件
+      if (matchingOrderIds.length > 0) {
+        where.OR.push({
+          orderIds: {
+            hasSome: matchingOrderIds
+          }
+        });
+      }
     }
     
     if (clientId) {
