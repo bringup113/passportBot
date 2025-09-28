@@ -6,25 +6,25 @@ export class OverdueService {
   constructor(private readonly prisma: PrismaService) {}
 
   listPassports(params: { days?: number; expired?: boolean }) {
-    const where: any = {};
+    const where: any = { isFollowing: true };
     if (params.expired) {
       where.expiryDate = { lte: new Date() };
     } else if (params.days) {
       const to = new Date();
       to.setDate(to.getDate() + params.days);
-      where.expiryDate = { lte: to, gt: new Date() };
+      where.expiryDate = { lte: to };
     }
     return this.prisma.passport.findMany({ where, orderBy: { expiryDate: 'asc' }, include: { client: true } });
   }
 
   listVisas(params: { days?: number; expired?: boolean }) {
-    const where: any = {};
+    const where: any = { passport: { isFollowing: true } };
     if (params.expired) {
       where.expiryDate = { lte: new Date() };
     } else if (params.days) {
       const to = new Date();
       to.setDate(to.getDate() + params.days);
-      where.expiryDate = { lte: to, gt: new Date() };
+      where.expiryDate = { lte: to };
     }
     return this.prisma.visa.findMany({ 
       where, 

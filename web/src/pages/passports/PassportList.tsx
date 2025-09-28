@@ -1,5 +1,5 @@
 import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, message, DatePicker, Popconfirm, Tabs, Row, Col, Switch, Radio } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import http from '../../api/http';
 import dayjs from 'dayjs';
 import { PlusOutlined, DeleteOutlined, ScanOutlined } from '@ant-design/icons';
@@ -56,6 +56,10 @@ export default function PassportList() {
   // MRZ验证状态
   const [mrzError, setMrzError] = useState<string | null>(null);
   const [mrzValid, setMrzValid] = useState(false);
+  
+  // 防抖相关状态
+  const mrzTimeoutRef = useRef<number | null>(null);
+  const lastMrzValueRef = useRef<string>('');
 
   const fetchClients = async () => {
     const res = await http.get('/clients');
@@ -65,8 +69,8 @@ export default function PassportList() {
   // MRZ验证和自动填充函数
   const validateAndFillMrz = (mrzText: string) => {
     try {
-      // 清理MRZ文本，移除首尾空格
-      const cleanMrz = mrzText.trim();
+      // 清理MRZ文本，移除首尾空格，并将《符号替换为<符号
+      const cleanMrz = mrzText.trim().replace(/《/g, '<');
       
       let lines: string[] = [];
       
@@ -152,16 +156,54 @@ export default function PassportList() {
     }
   };
 
-  // 处理MRZ码输入变化
-  const handleMrzChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  // 检测扫描是否完成（通过检测输入速度）
+  const isScanComplete = useCallback((currentValue: string, previousValue: string) => {
+    // 如果输入长度增加且达到MRZ码的最小长度，且输入间隔很短（扫描枪特征）
+    const lengthIncreased = currentValue.length > previousValue.length;
+    const hasMinLength = currentValue.length >= 44; // TD3格式最小长度
+    const isRapidInput = currentValue.length - previousValue.length > 1; // 扫描枪通常一次输入多个字符
+    
+    return lengthIncreased && hasMinLength && (isRapidInput || currentValue.length >= 88);
+  }, []);
+
+  // 处理MRZ码输入变化（带防抖）
+  const handleMrzChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
-    if (value.length >= 44) { // TD3格式的MRZ码通常是44个字符
+    lastMrzValueRef.current = value;
+    
+    // 清除之前的定时器
+    if (mrzTimeoutRef.current) {
+      clearTimeout(mrzTimeoutRef.current);
+    }
+    
+    // 如果输入为空，立即清除验证状态
+    if (!value.trim()) {
+      setMrzValid(false);
+      setMrzError(null);
+      return;
+    }
+    
+    // 检测是否是扫描枪输入（快速连续输入）
+    const isRapidInput = value.length > lastMrzValueRef.current.length && 
+                        (value.length - lastMrzValueRef.current.length) > 1;
+    
+    if (isRapidInput && value.length >= 44) {
+      // 如果是快速输入且达到最小长度，立即验证（扫描枪输入）
       validateAndFillMrz(value);
+    } else if (value.length >= 44) {
+      // 如果是手动输入，使用防抖延迟验证
+      mrzTimeoutRef.current = setTimeout(() => {
+        // 检查值是否在延迟期间发生了变化
+        if (lastMrzValueRef.current === value) {
+          validateAndFillMrz(value);
+        }
+      }, 500); // 500ms防抖延迟
     } else {
+      // 长度不够，清除验证状态但不显示错误
       setMrzValid(false);
       setMrzError(null);
     }
-  };
+  }, []);
 
   // 分页变化处理
   const handleTableChange = (paginationInfo: any) => {
@@ -192,6 +234,15 @@ export default function PassportList() {
 
   useEffect(() => { fetchClients(); }, []);
   useEffect(() => { fetchData(); }, [q, clientId, days, expired, pagination.current, pagination.pageSize]);
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (mrzTimeoutRef.current) {
+        clearTimeout(mrzTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const refreshDetail = async (passportNo: string) => {
     const res = await http.get(`/passports/${passportNo}`);

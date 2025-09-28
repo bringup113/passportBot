@@ -62,7 +62,7 @@ interface BillPreviewProps {
 
 const BillPreview: React.FC<BillPreviewProps> = ({ 
   bill, 
-  companyName = "天成旅行社",
+  companyName = "易捷旅行社",
   companyContact = "如有疑问,请联系我们"
 }) => {
   // 格式化日期
